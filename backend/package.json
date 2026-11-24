@@ -2,12 +2,14 @@
   "name": "reachinbox-scheduler-backend",
   "version": "1.0.0",
   "description": "Production-grade Email Scheduler & Job Queue Service",
+  "engines": {
+    "node": ">=20"
+  },
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "ts-node src/index.ts",
-    "dev": "nodemon --watch src --ext ts --exec ts-node src/index.ts",
-    "migrate:firestore": "node scripts/migrate-sqlite-to-firestore.cjs"
+    "start": "node dist/index.js",
+    "dev": "nodemon --watch src --ext ts --exec ts-node src/index.ts"
   },
   "dependencies": {
     "@bull-board/api": "^6.7.1",
@@ -17,15 +19,13 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "firebase-admin": "^13.0.0",
+    "google-auth-library": "^11.3.4",
     "ioredis": "^5.5.0",
     "ioredis-mock": "^8.13.1",
     "minisearch": "^7.2.0",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.10.0",
     "pg": "^8.13.3",
-    "redis-memory-server": "^0.17.2",
-    "sqlite3": "^5.1.7",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

@@ -8,8 +8,6 @@ import { SlackModal } from './components/SlackModal';
 import { LoginModal } from './components/LoginModal';
 import { EmailItem, DashboardStats, SenderOption, UserProfile, QueueDetails } from './types';
 import { api } from './services/api';
-import { auth } from './firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { Calendar, CheckCircle2, Shield, Layers } from 'lucide-react';
 
 export function App() {
@@ -31,19 +29,31 @@ export function App() {
   const [slackConnected, setSlackConnected] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!auth) {
+    if (!api.hasSession()) {
       setAuthReady(true);
       return;
     }
-    return onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser ? {
-        name: firebaseUser.displayName || firebaseUser.email || 'Google user',
-        email: firebaseUser.email || '',
-        avatar: firebaseUser.photoURL || '',
-        tenantId: firebaseUser.uid,
-      } : null);
-      setAuthReady(true);
-    });
+
+    let active = true;
+    api.verifyAuth()
+      .then((response) => {
+        if (response.ok && active) {
+          setUser(api.getSessionUser());
+        } else {
+          api.logout();
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to validate the saved session:', error);
+        api.logout();
+      })
+      .finally(() => {
+        if (active) setAuthReady(true);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Fetch all dashboard data seamlessly without scroll jumping or flashing
@@ -89,8 +99,8 @@ export function App() {
     return () => clearInterval(interval);
   }, [authReady, fetchData, user]);
 
-  const handleLogout = async () => {
-    if (auth) await signOut(auth);
+  const handleLogout = () => {
+    api.logout();
     setUser(null);
   };
 

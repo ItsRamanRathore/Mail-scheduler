@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
+import { config } from '../config';
 
-let testAccount: nodemailer.TestAccount | null = null;
 let transporter: nodemailer.Transporter | null = null;
 
 export async function getEmailTransporter(): Promise<nodemailer.Transporter> {
@@ -8,33 +8,39 @@ export async function getEmailTransporter(): Promise<nodemailer.Transporter> {
     return transporter;
   }
 
-  try {
-    testAccount = await nodemailer.createTestAccount();
-    transporter = nodemailer.createTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
-      secure: false, // true for 465, false for other ports
-      auth: {
-        user: testAccount.user,
-        pass: testAccount.pass,
-      },
-    });
+  if (config.smtp.user || config.smtp.password) {
+    if (!config.smtp.user || !config.smtp.password) {
+      throw new Error('Both SMTP_USER and SMTP_PASS must be configured.');
+    }
 
-    console.log(`🚀 Ethereal SMTP Initialized. User: ${testAccount.user}`);
-    return transporter;
-  } catch (error) {
-    console.error('Failed to create Ethereal test account:', error);
-    // Fallback pseudo transporter for resilience
     transporter = nodemailer.createTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
-      auth: { user: 'mock@ethereal.email', pass: 'mock' },
+      host: config.smtp.host,
+      port: config.smtp.port,
+      secure: config.smtp.secure,
+      auth: {
+        user: config.smtp.user,
+        pass: config.smtp.password,
+      },
     });
     return transporter;
   }
+
+  const testAccount = await nodemailer.createTestAccount();
+  transporter = nodemailer.createTransport({
+    host: 'smtp.ethereal.email',
+    port: 587,
+    secure: false,
+    auth: {
+      user: testAccount.user,
+      pass: testAccount.pass,
+    },
+  });
+
+  console.log('Ethereal SMTP test account initialized.');
+  return transporter;
 }
 
-export async function sendEmailViaEthereal(options: {
+export async function sendEmail(options: {
   from: string;
   to: string;
   subject: string;
@@ -49,9 +55,9 @@ export async function sendEmailViaEthereal(options: {
     text: options.html.replace(/<[^>]*>?/gm, ''),
   });
 
-  const previewUrl = nodemailer.getTestMessageUrl(info);
+  const previewUrl = nodemailer.getTestMessageUrl(info) || '';
   return {
     messageId: info.messageId,
-    previewUrl: previewUrl || `https://ethereal.email/message/${info.messageId}`,
+    previewUrl,
   };
 }

@@ -87,7 +87,7 @@ export const QueueDashboard: React.FC<QueueDashboardProps> = ({ queue, onRefresh
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
           {workers.length === 0 ? (
             <p className="text-xs font-semibold text-slate-600">
-              Firebase Cloud Tasks schedules and dispatches jobs for this deployment.
+              The Railway API schedules jobs and restores pending sends from its persistent database after restarts.
             </p>
           ) : workers.map((w, idx) => (
             <div key={idx} className="skeuo-inset p-4 rounded-xl flex items-center justify-between">

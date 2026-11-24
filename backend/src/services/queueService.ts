@@ -1,7 +1,7 @@
 import { Queue } from 'bullmq';
 import { config } from '../config';
 import { db } from '../db';
-import { sendEmailViaEthereal } from './emailService';
+import { sendEmail } from './emailService';
 import { rateLimiterService } from './rateLimiterService';
 import { searchService } from './searchService';
 
@@ -20,6 +20,7 @@ export const emailQueue = new Queue<EmailJobData>('email-scheduler-queue', {
   connection: {
     host: config.redis.host,
     port: config.redis.port,
+    password: config.redis.password,
     lazyConnect: true,
   },
 });
@@ -41,13 +42,13 @@ export async function scheduleEmailJob(data: EmailJobData) {
   const jobId = `email-${data.emailId}`;
 
   try {
-    // Add job to BullMQ queue so Bull Board tracks it
-    // @ts-ignore
     await emailQueue.add('send-email', data, {
       delay: delayMs,
       jobId,
-    }).catch(() => {});
-  } catch (e) {}
+    });
+  } catch (error) {
+    console.warn('BullMQ dashboard enqueue failed; the scheduled email remains in SQLite.', error);
+  }
 
   if (delayMs > 0) {
     if (activeTimers.has(data.emailId)) {
@@ -98,7 +99,7 @@ export async function executeDirectEmailSend(data: EmailJobData) {
   }
 
   try {
-    const sent = await sendEmailViaEthereal({
+    const sent = await sendEmail({
       from: data.sender,
       to: data.recipient,
       subject: data.subject,

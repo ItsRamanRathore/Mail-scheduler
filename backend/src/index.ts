@@ -8,10 +8,21 @@ import { initDB } from './db';
 import { initQueue, emailQueue } from './services/queueService';
 import { searchService } from './services/searchService';
 import apiRouter from './routes/api';
+import { loginWithPassword, verifySession } from './middleware/auth';
 
 const app = express();
+app.set('trust proxy', 1);
 
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || config.frontendOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error('Origin is not allowed by CORS.'));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -36,14 +47,15 @@ try {
     });
   }
 
-  app.use('/admin/queues', serverAdapter.getRouter());
+  app.use('/admin/queues', verifySession, serverAdapter.getRouter());
   console.log('📊 BullMQ Live Queue Dashboard mounted at /admin/queues');
 } catch (err) {
   console.warn('BullBoard setup note:', err);
 }
 
 // API Routes
-app.use('/api', apiRouter);
+app.post('/api/auth/login', loginWithPassword);
+app.use('/api', verifySession, apiRouter);
 
 // Health check
 app.get('/health', (req, res) => {

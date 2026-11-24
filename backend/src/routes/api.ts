@@ -10,6 +10,10 @@ import { config } from '../config';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
+router.get('/auth', (_req: Request, res: Response) => {
+  res.json({ success: true });
+});
+
 // 1. GET /api/emails - Retrieve scheduled and sent emails with search & pagination
 router.get('/emails', (req: Request, res: Response) => {
   const { status, query } = req.query;

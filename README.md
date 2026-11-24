@@ -1,8 +1,8 @@
 # 🚀 ReachInbox - Full-stack Email Job Scheduler & Dashboard
 
-A distributed email scheduler and live monitoring dashboard built for the **ReachInbox Software Development Intern Assignment**, with local SQLite/BullMQ development and a Firebase-hosted Firestore/Cloud Tasks deployment.
+A distributed email scheduler and live monitoring dashboard built for the **ReachInbox Software Development Intern Assignment**. The frontend is deployed on Vercel and the Express API runs on Railway with SQLite on a persistent volume. The scheduler is protected by an admin password; Firebase is not used.
 
-Designed with **BullMQ delayed job queues**, **persistence across server restarts**, **worker concurrency**, **per-sender sliding window rate limiting**, **live Slack notifications on threshold breaches**, and a **premium, bespoke dark-mode frontend**.
+Designed with **scheduled email delivery**, **SQLite restart recovery**, **per-sender sliding-window rate limiting**, **live Slack notifications on threshold breaches**, and a **premium, bespoke dark-mode frontend**.
 
 ---
 
@@ -16,25 +16,24 @@ Designed with **BullMQ delayed job queues**, **persistence across server restart
 7. [Environment Variables](#environment-variables)
 8. [Quick Start Guide](#quick-start-guide)
 9. [BullMQ Live Dashboard](#bullmq-live-dashboard)
-10. [Firebase Deployment](#firebase-deployment)
+10. [Railway and Vercel Deployment](#railway-and-vercel-deployment)
 
 ---
 
 ## 🎯 Core Features & Architecture
 
-### 1. Robust Queue & Delayed Job Execution
-- **Strictly No Cron Jobs:** Uses BullMQ delayed jobs (`{ delay: targetTime - now }`) combined with database persistence.
-- **Dual-Layer Persistence:** All emails are stored in a relational database with strict state tracking (`scheduled` -> `sent` / `rescheduled` / `failed`).
-- **Zero Loss / Zero Duplicate Restart Recovery:** On server boot or unexpected restart, pending jobs are restored directly from SQLite/relational DB. Future jobs fire at their exact intended timestamp, past-due jobs trigger immediately, and already sent jobs are completely idempotent.
+### 1. Scheduled Email Delivery
+- Email records and pending schedule times are stored in SQLite.
+- The Railway service runs timers for scheduled sends and reconstructs pending sends from SQLite after a restart. Use an always-on service plan; scheduled sends cannot run while a sleeping service is stopped.
 
-### 2. Multi-Worker Concurrency & Throttling
-- **Configurable Worker Concurrency:** BullMQ worker concurrency is configured via `WORKER_CONCURRENCY` (default: 5 parallel workers).
+### 2. Throttling
+- **Configurable Worker Concurrency:** `WORKER_CONCURRENCY` is retained as a scheduler setting.
 - **Inter-Email Delay (Provider Throttle Protection):** Configurable minimum delay between individual email dispatches (default: `MIN_DELAY_BETWEEN_EMAILS_MS=2000`, 2 seconds).
 - **Multi-Sender Identity Support:** Switch and distribute cold outreach between multiple senders (e.g. Alex Rivera, Sarah Jenkins, Founder).
 
-### 3. Redis-Backed Sliding Hour Rate Limiting
-- **Atomic Hour-Window Counter:** Keyed by `ratelimit:sender:<sender_email>:<YYYY-MM-DD-HH>`.
-- **Order-Preserving Delay:** When a sender hits the hourly threshold (`MAX_EMAILS_PER_HOUR_PER_SENDER=50`), jobs are never dropped. Instead, they are automatically rescheduled to the start of the next UTC hour window.
+### 3. SQLite-Backed Sliding Hour Rate Limiting
+- The sender limit is calculated from successfully sent records in the previous hour.
+- When a sender hits the hourly threshold (`MAX_EMAILS_PER_HOUR_PER_SENDER=50`), a pending email is rescheduled until quota is available.
 - **Configurable via ENV:** No hardcoded numbers.
 
 ### 4. Live Slack Rate-Limit Alerts
@@ -47,7 +46,7 @@ Designed with **BullMQ delayed job queues**, **persistence across server restart
 
 ### 6. Premium Bespoke Frontend Design
 - **Non-AI Template Look:** Handcrafted dark palette (`#080d1a`), ambient glassmorphic cards, glowing status pills, and micro-interactions.
-- **Google Sign-In:** Firebase Authentication protects the deployed API with an authorized-email allowlist.
+- **Admin Password:** A Railway-configured password protects the API; signed sessions expire after 12 hours.
 - **Batch CSV/TXT Lead Upload:** Direct drag-and-drop or file upload of email lead lists with automatic deduplication.
 - **Live Monitoring:** Real-time counters for Scheduled, Delivered, and Sender Quota bars.
 - **Ethereal Mailbox Previews:** Direct one-click links to view real emails rendered in Ethereal.
@@ -58,7 +57,8 @@ Designed with **BullMQ delayed job queues**, **persistence across server restart
 
 - **Backend:** Node.js, TypeScript, Express.js
 - **Local Queue & Database:** BullMQ/Redis and SQLite for local development
-- **Hosted Queue & Database:** Cloud Tasks for durable timed jobs and Firestore for persistent records
+- **Deployment:** Railway for the Express API; SQLite on a Railway persistent volume
+- **Authentication:** Shared admin password and signed API sessions
 - **Email Delivery:** Ethereal for local previews; configurable SMTP for hosted delivery
 - **Monitoring UI:** `@bull-board/api` & `@bull-board/express`
 - **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, Lucide Icons
@@ -67,25 +67,33 @@ Designed with **BullMQ delayed job queues**, **persistence across server restart
 
 ## ⚙️ Environment Variables
 
-Create a `.env` file in `./backend/.env`:
+Use `backend/.env.example` as a reference and set the variables in `backend/.env` for local development. Set the same variables in Railway's service settings for deployment. Do not overwrite an existing `.env` file.
 
 ```env
 PORT=5000
 NODE_ENV=development
+DATABASE_URL=./data/scheduler.db
+FRONTEND_ORIGINS=http://localhost:5173
+APP_PASSWORD=replace-with-a-long-random-password
+SESSION_SECRET=replace-with-at-least-32-random-bytes
 
 # Redis (BullMQ Queue)
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 REDIS_PASSWORD=
 
-# Relational Database Path
-DATABASE_URL=./data/scheduler.db
-
 # Concurrency & Rate Limiting
 WORKER_CONCURRENCY=5
 MAX_EMAILS_PER_HOUR=200
 MAX_EMAILS_PER_HOUR_PER_SENDER=50
 MIN_DELAY_BETWEEN_EMAILS_MS=2000
+
+# SMTP (optional locally; required for real email delivery)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASS=
 
 # Slack Integration
 SLACK_CLIENT_ID=your_slack_id
@@ -108,7 +116,7 @@ pnpm dev     # starts Express server on http://localhost:5000
 
 ### 2. Start Frontend
 
-Copy `frontend/.env.example` to `frontend/.env.local`, fill in the Firebase Web App values, and enable Google sign-in in Firebase Authentication. Add `localhost` to Authentication's authorized domains for local sign-in.
+Ensure `backend/.env` contains `APP_PASSWORD` and `SESSION_SECRET`, using `backend/.env.example` as a reference. The frontend uses the local API automatically in development; no frontend environment file is required.
 
 ```bash
 cd frontend
@@ -139,96 +147,61 @@ pnpm dev     # starts Vite frontend on http://localhost:5173
 
 ---
 
-## Firebase Deployment
+## Railway and Vercel Deployment
 
-The Firebase deployment uses Firebase Hosting for the React site, Firestore for email/sender/Slack data, Firebase Authentication for Google sign-in, and second-generation Cloud Functions with Cloud Tasks for the API and scheduled delivery. The Firestore database and functions are configured for `us-central1`. Cloud Functions and Cloud Tasks require a Firebase project on the Blaze plan; usage may incur charges.
+This deployment uses Vercel for the React frontend and Railway for the Express API, SQLite database, and scheduled-send process. It does not use Firebase.
 
-The hosted backend is separate from the local SQLite/BullMQ backend. The migration script imports existing SQLite records into Firestore; stop the local backend before running it so its database and WAL files are stable. The import is repeatable, skips Firestore documents that already exist, does not print record contents, and queues existing scheduled emails the first time an authorized user opens the dashboard.
+### 1. Deploy the API on Railway
 
-### 1. Create and configure the Firebase project
+1. Create a Railway project from this GitHub repository and add a service for it.
+2. Set the service **Root Directory** to `backend`.
+3. Use build command `pnpm install --frozen-lockfile && pnpm build`, start command `pnpm start`, and health-check path `/health`.
+4. Add a Railway volume mounted at `/data`. Set `DATABASE_URL=/data/scheduler.db` so SQLite and its WAL files persist across deployments and restarts.
+5. Keep the service to one replica because SQLite is local to the mounted volume.
+6. Add a Redis service if you want the BullMQ queue inspector, then map its host, port, and password to `REDIS_HOST`, `REDIS_PORT`, and `REDIS_PASSWORD`.
+7. Set the Railway service variables:
 
-1. Create a Firebase project, upgrade it to the Blaze plan, and add a **Firestore Native** database in `us-central1`. Firestore's location cannot be changed after creation.
-2. In **Authentication → Sign-in method**, enable Google. Add the eventual Hosting domain under **Authentication → Settings → Authorized domains**.
-3. Register a Web App in **Project settings** and copy its web configuration.
-4. Install the Firebase CLI and Google Cloud CLI, then sign in and select the project:
-
-   ```powershell
-   npm install -g firebase-tools
-   firebase login
-   firebase use --add
-   gcloud auth application-default login
-   gcloud config set project YOUR_PROJECT_ID
+   ```env
+   NODE_ENV=production
+   DATABASE_URL=/data/scheduler.db
+   APP_PASSWORD=use-a-unique-password-of-at-least-16-characters
+   SESSION_SECRET=use-a-random-secret-of-at-least-32-characters
+   FRONTEND_ORIGINS=https://YOUR_VERCEL_DOMAIN
+   SMTP_HOST=your-smtp-host
+   SMTP_PORT=587
+   SMTP_SECURE=false
+   SMTP_USER=your-smtp-user
+   SMTP_PASS=your-smtp-password
    ```
 
-5. Enable Cloud Tasks if it is not already enabled:
+   Generate a session secret with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Keep both password and session secret in Railway variables, never in the frontend or source control. The API rate-limits failed sign-in attempts and expires sessions after 12 hours. Configure SMTP for real delivery; without SMTP credentials, local development uses Ethereal test email.
 
-   ```powershell
-   gcloud services enable cloudtasks.googleapis.com
+### 2. Deploy the frontend on Vercel
+
+1. Import the repository into Vercel and set **Root Directory** to `frontend`.
+2. Use Vercel's Vite defaults: `pnpm install --frozen-lockfile`, build `pnpm build`, output directory `dist`. The included `frontend/vercel.json` routes frontend paths to the SPA entry point.
+3. Add this Vercel environment variable for Production:
+
+   ```env
+   VITE_API_BASE_URL=https://YOUR-RAILWAY-DOMAIN/api
    ```
 
-The Cloud Functions runtime service account also needs the **Cloud Tasks Enqueuer** role to create scheduled tasks. If deployment succeeds but scheduling returns a permission error, grant `roles/cloudtasks.enqueuer` to the runtime service account shown for the deployed functions.
+4. Deploy the Railway API first, then set `VITE_API_BASE_URL` to its public domain and deploy or redeploy Vercel.
 
-### 2. Configure client and server settings
+### 3. Verify the deployment
 
-Copy `frontend/.env.example` to `frontend/.env.production` and fill in the Firebase Web App values:
+Open `https://YOUR-RAILWAY-DOMAIN/health`; it should return a healthy status. Sign in on Vercel with the admin password, schedule a test email to an address you control, and confirm the record remains after a Railway redeploy.
 
-```env
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=YOUR_PROJECT_ID.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=YOUR_PROJECT_ID
-VITE_FIREBASE_APP_ID=...
-```
+### Service sleep and scheduled sends
 
-Create `functions/.env.YOUR_PROJECT_ID` with the authorized Google account(s), comma-separated:
+Railway's Free plan sleeps after roughly 5–10 minutes without outbound traffic, and the first request wakes it with a cold-start delay. This app schedules sends using timers in the backend process, so a sleeping service can delay scheduled sends. Use Railway's always-on Hobby plan for scheduled delivery; Railway currently lists it at $5/month. Vercel's static frontend does not have this backend wake-up delay. See [Railway's Free plan details](https://docs.railway.com/pricing/free-plan) and [serverless behavior](https://docs.railway.com/deployments/serverless).
 
-```env
-ALLOWED_EMAILS=you@example.com
-MAX_EMAILS_PER_HOUR=200
-MAX_EMAILS_PER_HOUR_PER_SENDER=50
-MIN_DELAY_BETWEEN_EMAILS_MS=2000
-```
+SQLite data survives a deploy only when the database path is on the Railway volume. Back up the volume/database regularly; a volume is persistence, not a backup.
 
-The app is a shared workspace: every email in `ALLOWED_EMAILS` can access the same records and Slack configuration. Do not leave this list empty. Set the SMTP credentials as Firebase secrets before deployment:
+### Security and transition notes
 
-```powershell
-firebase functions:secrets:set SMTP_USER
-firebase functions:secrets:set SMTP_PASS
-```
-
-The deployed sender uses SMTP; configure a real mail provider and permitted sender identities. The local backend's Ethereal service is only for test previews, not real delivery.
-
-### 3. Migrate existing SQLite data
-
-Stop the local backend, then run from the repository root. Replace the project ID with the Firebase project selected above:
-
-```powershell
-$env:GOOGLE_CLOUD_PROJECT = "YOUR_PROJECT_ID"
-pnpm --dir backend install
-pnpm --dir backend migrate:firestore
-```
-
-The signed-in Google account used by `gcloud auth application-default login` needs Firestore data access (for example, the **Cloud Datastore User** role). Keep a separate backup of `backend/data/scheduler.db` before migrating. Do not delete the source database until you have checked the imported counts and dashboard.
-
-### 4. Build and deploy
-
-From the repository root:
-
-```powershell
-pnpm --dir frontend install
-pnpm --dir frontend build
-pnpm --dir functions install
-pnpm --dir functions build
-firebase deploy --only firestore:rules,firestore:indexes,functions,hosting
-```
-
-After deployment, open the Hosting URL, sign in with an email in `ALLOWED_EMAILS`, and schedule a test message to an address you control. Check the Cloud Functions and Cloud Tasks logs if the task does not run. Firebase Hosting serves `/api/*` through the authenticated API function; direct Firestore client reads and writes are denied by the deployed rules.
-
-### Important behavior and security notes
-
-- Cloud Tasks preserves scheduled sends across function restarts. Long delays are chained in 30-day steps.
-- SMTP providers do not universally support idempotency. A process crash after a provider accepts a message but before Firestore records `sent` can leave an ambiguous delivery; verify provider-side delivery logs before manually retrying such a record.
-- Full-text search scans Firestore records when a search term is supplied. This is suitable for a small project; large datasets should use a dedicated search index.
-- The `.env` and project selection files are local configuration and are excluded from new commits. The existing `backend/.env` is currently tracked in Git; review it before publishing the repository and rotate any credentials it may contain.
+- SQLite starts empty on the Railway volume; data is not automatically imported from another deployment.
+- `backend/.env` was tracked previously. It is now excluded from future commits, but removing it from the latest commit does not erase older Git history. Rotate any credentials it contained before deploying or sharing the repository.
 
 ---
 

@@ -10,6 +10,23 @@ export const config = {
     password: process.env.REDIS_PASSWORD || undefined,
   },
   dbPath: process.env.DATABASE_URL || './data/scheduler.db',
+  auth: {
+    password: process.env.APP_PASSWORD || '',
+    sessionSecret: process.env.SESSION_SECRET || '',
+  },
+  frontendOrigins: (process.env.FRONTEND_ORIGINS || 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+  smtp: {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    secure: process.env.SMTP_SECURE
+      ? process.env.SMTP_SECURE === 'true'
+      : parseInt(process.env.SMTP_PORT || '587', 10) === 465,
+    user: process.env.SMTP_USER || '',
+    password: process.env.SMTP_PASS || '',
+  },
   elasticsearchNode: process.env.ELASTICSEARCH_NODE || 'http://localhost:9200',
   workerConcurrency: parseInt(process.env.WORKER_CONCURRENCY || '5', 10),
   maxEmailsPerHour: parseInt(process.env.MAX_EMAILS_PER_HOUR || '200', 10),
