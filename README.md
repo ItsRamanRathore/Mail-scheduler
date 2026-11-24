@@ -181,7 +181,7 @@ This deployment uses Vercel for the React frontend and Railway for the Express A
    - Generate `SESSION_SECRET` with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. It signs login sessions; keep it private. Sessions expire after 12 hours.
    - `FRONTEND_ORIGINS` must be the exact Vercel origin, such as `https://my-scheduler.vercel.app`, with no path. It allows the browser frontend to call the API.
    - Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, and `SMTP_PASS` to your email provider's settings for real delivery. Keep passwords in Railway Variables. Without SMTP credentials, the backend uses Ethereal test email, which is not real delivery.
-   - `DATABASE_URL` must match the volume path from step 5. Do not put `APP_PASSWORD` or `SESSION_SECRET` in Vercel or in source control. The email `admin@gmail.com` shown on the demo login screen is only an evaluation label; no Google authentication occurs.
+   - `DATABASE_URL` must match the volume path from step 5. Do not put `APP_PASSWORD` or `SESSION_SECRET` in Vercel or in source control. Share the scheduler password only with people you authorize; it must not be added to the frontend.
 
 ### Import existing local data into Railway
 
