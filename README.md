@@ -1,256 +1,176 @@
-# 🚀 ReachInbox - Full-stack Email Job Scheduler & Dashboard
+# ReachInbox Mail Scheduler
 
-A distributed email scheduler and live monitoring dashboard built for the **ReachInbox Software Development Intern Assignment**. The frontend is deployed on Vercel and the Express API runs on Railway with SQLite on a persistent volume. The API uses a shared admin password; Firebase and Google OAuth are not used.
+A React dashboard and Express API for composing, scheduling, tracking, and searching email jobs. The frontend is hosted on Vercel; the API and SQLite databases run on Railway.
 
-Designed with **scheduled email delivery**, **SQLite restart recovery**, **per-sender sliding-window rate limiting**, **live Slack notifications on threshold breaches**, and a **premium, bespoke dark-mode frontend**.
+## Live application
 
----
+- **Protected production app:** [https://mail-scheduler-jet.vercel.app/](https://mail-scheduler-jet.vercel.app/)
+- **Password-free public demo:** [https://mail-scheduler-jet.vercel.app/demo](https://mail-scheduler-jet.vercel.app/demo)
+- **Production API health:** [https://mail-scheduler-production.up.railway.app/health](https://mail-scheduler-production.up.railway.app/health)
+- **Demo API health:** [https://mail-scheduler-public-demo-production.up.railway.app/health](https://mail-scheduler-public-demo-production.up.railway.app/health)
 
-## 📑 Table of Contents
-1. [Core Features & Architecture](#core-features--architecture)
-2. [Tech Stack](#tech-stack)
-3. [Architecture Overview & Scheduling Flow](#architecture-overview--scheduling-flow)
-4. [Persistence & Crash Recovery](#persistence--crash-recovery)
-5. [Rate Limiting & Concurrency Architecture](#rate-limiting--concurrency-architecture)
-6. [Slack Notification Integration](#slack-notification-integration)
-7. [Environment Variables](#environment-variables)
-8. [Quick Start Guide](#quick-start-guide)
-9. [BullMQ Live Dashboard](#bullmq-live-dashboard)
-10. [Railway and Vercel Deployment](#railway-and-vercel-deployment)
+The production app requires the private scheduler password. Selecting a sender profile chooses the sending identity; it does not replace the password. The `/demo` route uses three one-click demo profiles and never sends real email.
 
----
+## Features
 
-## 🎯 Core Features & Architecture
+### Backend
 
-### 1. Scheduled Email Delivery
-- Email records and pending schedule times are stored in SQLite.
-- The Railway service runs timers for scheduled sends and reconstructs pending sends from SQLite after a restart. Use an always-on service plan; scheduled sends cannot run while a sleeping service is stopped.
+- Express API for login, email scheduling, history, status, search, recipient parsing, cancellation, and statistics.
+- SQLite persistence with write-ahead logging (WAL); MiniSearch rebuilds its in-memory full-text index from SQLite at startup.
+- Restart recovery for records in `scheduled` or `rescheduled` state.
+- Per-sender rolling-hour rate limiting based on successful send timestamps.
+- Optional Slack webhook alerts when a sender reaches its hourly limit.
+- Password-protected Bull Board queue-inspection route at `/admin/queues`.
+- `/health` endpoint for Railway health checks.
 
-### 2. Throttling
-- **Configurable Worker Concurrency:** `WORKER_CONCURRENCY` is retained as a scheduler setting.
-- **Inter-Email Delay (Provider Throttle Protection):** Configurable minimum delay between individual email dispatches (default: `MIN_DELAY_BETWEEN_EMAILS_MS=2000`, 2 seconds).
-- **Multi-Sender Identity Support:** Switch and distribute cold outreach between multiple senders (e.g. Alex Rivera, Sarah Jenkins, Founder).
+### Frontend
 
-### 3. SQLite-Backed Sliding Hour Rate Limiting
-- The sender limit is calculated from successfully sent records in the previous hour.
-- When a sender hits the hourly threshold (`MAX_EMAILS_PER_HOUR_PER_SENDER=50`), a pending email is rescheduled until quota is available.
-- **Configurable via ENV:** No hardcoded numbers.
+- Password-protected production login and a separate one-click demo profile picker.
+- Scheduled and sent email views, summary statistics, search, and queue information.
+- Compose and schedule emails, parse recipient lists from CSV/TXT uploads, and cancel pending scheduled records.
+- Slack controls are shown only in the protected production app.
+- The public demo labels its simulated delivery and disables Slack.
 
-### 4. Live Slack Rate-Limit Alerts
-- When a sender crosses the allowed threshold in an hour window, a rich webhook alert is dispatched to the configured Slack channel in real-time.
-- Unconnected Slack environments fail gracefully without crashing.
+## Architecture and scheduling
 
-### 5. Instant Full-Text Search (MiniSearch / Elasticsearch)
-- Fast indexing across recipient, sender, subject, and email body.
-- Sub-millisecond lookup and live fuzzy search.
+```text
+Browser (React/Vite on Vercel)
+  /       -> protected production API on Railway -> production SQLite volume
+  /demo   -> isolated demo API on Railway        -> demo SQLite volume
 
-### 6. Premium Bespoke Frontend Design
-- **Non-AI Template Look:** Handcrafted dark palette (`#080d1a`), ambient glassmorphic cards, glowing status pills, and micro-interactions.
-- **Protected Demo Profile Picker:** Choose one of the three saved sender profiles, then sign in with the Railway admin password. Signed sessions expire after 12 hours.
-- **Batch CSV/TXT Lead Upload:** Direct drag-and-drop or file upload of email lead lists with automatic deduplication.
-- **Live Monitoring:** Real-time counters for Scheduled, Delivered, and Sender Quota bars.
-- **Ethereal Mailbox Previews:** Direct one-click links to view real emails rendered in Ethereal.
-
----
-
-## 🛠️ Tech Stack
-
-- **Backend:** Node.js, TypeScript, Express.js
-- **Local Queue & Database:** BullMQ/Redis and SQLite for local development
-- **Deployment:** Railway for the Express API; SQLite on a Railway persistent volume
-- **Authentication:** Shared admin password and signed API sessions
-- **Email Delivery:** Ethereal for local previews; configurable SMTP for hosted delivery
-- **Monitoring UI:** `@bull-board/api` & `@bull-board/express`
-- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, Lucide Icons
-
----
-
-## ⚙️ Environment Variables
-
-Use `backend/.env.example` as a reference and set the variables in `backend/.env` for local development. Set the same variables in Railway's service settings for deployment. Do not overwrite an existing `.env` file.
-
-```env
-PORT=5000
-NODE_ENV=development
-DATABASE_URL=./data/scheduler.db
-FRONTEND_ORIGINS=http://localhost:5173
-APP_PASSWORD=replace-with-a-long-random-password
-SESSION_SECRET=replace-with-at-least-32-random-bytes
-
-# Redis (BullMQ Queue)
-REDIS_HOST=127.0.0.1
-REDIS_PORT=6379
-REDIS_PASSWORD=
-
-# Concurrency & Rate Limiting
-WORKER_CONCURRENCY=5
-MAX_EMAILS_PER_HOUR=200
-MAX_EMAILS_PER_HOUR_PER_SENDER=50
-MIN_DELAY_BETWEEN_EMAILS_MS=2000
-
-# SMTP (optional locally; required for real email delivery)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=
-SMTP_PASS=
-
-# Slack Integration
-SLACK_CLIENT_ID=your_slack_id
-SLACK_CLIENT_SECRET=your_slack_secret
-SLACK_REDIRECT_URI=http://localhost:5000/api/slack/callback
-SLACK_WEBHOOK_URL=
+Express API -> SQLite/WAL
+            -> Node.js timers for scheduled sends
+            -> optional Redis/BullMQ queue records for inspection
 ```
 
----
+1. The API validates the sender and request, then inserts email records into SQLite in a transaction.
+2. The scheduler creates a Node.js timer for each scheduled record. At the due time, it checks the sender's rate limit and calls the email transport.
+3. If the sender is at the limit, the record is moved to `rescheduled` until capacity is available.
+4. On startup, the service reads pending records from SQLite and recreates their timers.
 
-## 🚀 Quick Start Guide
+SQLite is the durable source of truth. The Railway volume keeps the database and its WAL files across deployments and restarts. The backend must be running for timers to execute; after a restart, pending timers are reconstructed from the database.
 
-### 1. Start Backend
+**Delivery guarantee:** this is not exactly-once email delivery. If the process stops after the provider accepts a message but before SQLite records it as sent, a recovered job could be sent again.
 
-```bash
-cd backend
-pnpm install # or npm install
-pnpm dev     # starts Express server on http://localhost:5000
-```
+## Rate limits, Redis, and concurrency
 
-### 2. Start Frontend
+- `MAX_EMAILS_PER_HOUR_PER_SENDER` controls the enforced per-sender rolling-hour limit. The default in [`backend/.env.example`](./backend/.env.example) is 50. Counts are read from successful SQLite send records; an over-limit job is deferred until the earliest send falls outside the hour.
+- `MIN_DELAY_BETWEEN_EMAILS_MS` controls the delay before each dispatch; the example default is 2,000 ms.
+- Public demo scheduling is capped at 10 recipients per request and 25 recipients per IP per hour. The IP counter is held in process memory and resets when the demo service restarts.
+- Redis is not needed for timer-based scheduling. In non-demo mode, the API also attempts to add delayed BullMQ queue records when Redis is reachable. The timer performs the actual dispatch; this codebase does not create a BullMQ `Worker`.
+- `WORKER_CONCURRENCY` and `MAX_EMAILS_PER_HOUR` are currently returned in API statistics but do not enforce a worker pool or global send limit. Do not treat the displayed worker rows as actual BullMQ workers.
+- SQLite is local to one mounted volume, so each Railway API service is configured for one replica.
 
-Ensure `backend/.env` contains `APP_PASSWORD` and `SESSION_SECRET`, using `backend/.env.example` as a reference. The frontend uses the local API automatically in development; no frontend environment file is required.
+## Email and Slack behavior
 
-```bash
-cd frontend
-pnpm install # or npm install
-pnpm dev     # starts Vite frontend on http://localhost:5173
-```
+- **Local development without `SMTP_USER` and `SMTP_PASS`:** Nodemailer creates an Ethereal test account. Messages are test-only; use the preview URL in the API response or backend logs to view them.
+- **Configured SMTP:** when both `SMTP_USER` and `SMTP_PASS` are set, the backend sends through the configured SMTP host and port.
+- **Public demo:** sending is simulated in the API. It does not connect to Ethereal or SMTP, and no message is delivered.
+- **Slack:** the protected service can send rate-limit alerts to a configured webhook. The public demo disables Slack.
 
-### 3. Access Dashboards
+## Local development
 
-- **Web Application:** `http://localhost:5173`
-- **BullMQ Live Queue Inspector:** `http://localhost:5000/admin/queues`
-- **API Health Check:** `http://localhost:5000/health`
+Requirements: Node.js 22 and pnpm 10.
 
----
+1. Create `backend/.env` from [`backend/.env.example`](./backend/.env.example). Set `APP_PASSWORD` to a private password of at least 16 characters and `SESSION_SECRET` to a random value of at least 32 characters. Keep `.env` out of source control.
 
-## 🧪 Verifying Restart Persistence Scenario
+   Generate a session secret with:
 
-1. Compose and schedule 3 emails for 3 minutes in the future from the UI.
-2. Stop the backend server (`Ctrl + C`).
-3. Note that the scheduled emails remain stored with status `scheduled` in `./backend/data/scheduler.db`.
-4. Restart the backend (`pnpm dev`).
-5. Notice the backend console output:
-   ```
-   🔄 [Recovery] Found 3 uncompleted scheduled emails in DB. Restoring state...
-   ⏱️ Restoring job email-xxx (scheduled for ..., in 120s)
-   ```
-6. The jobs will execute at their exact original timestamp with zero duplicate sends!
-
----
-
-## Railway and Vercel Deployment
-
-This deployment uses Vercel for the React frontend and Railway for the Express API, SQLite database, and scheduled-send process. It does not use Firebase.
-
-### 1. Deploy the API on Railway
-
-1. **Create the backend service.** In Railway, create a project from this GitHub repository and add a service connected to the repository. Select the branch you will push deployment changes to; Railway can only build committed and pushed files.
-2. **Set the service root directory.** Open the backend service's **Settings** and set **Root Directory** to `backend`. This makes Railway use `backend/package.json`, its lockfile, and its TypeScript source instead of trying to build the repository root.
-3. **Configure install, build, and start.** Let Railway detect pnpm or set the install command to `pnpm install --frozen-lockfile --prefer-offline`. Set the build command to `pnpm build` and the start command to `pnpm start`. Set the health-check path to `/health`; Railway will request this endpoint after starting the service. The backend pins Node 22 and pnpm 10 in `backend/package.json`. Do not add a separate global `node-gyp` install command.
-4. **Attach persistent storage.** From the Railway project canvas, create a **Volume**, connect it to this backend service, and set its **Mount Path** to `/data`. Create it in the same Railway environment (for example, Production) as the backend service. A mount makes that directory available to the running container and keeps the database files when Railway replaces the container.
-5. **Point SQLite at the volume.** In the backend service's **Variables**, add `DATABASE_URL` with the exact value `/data/scheduler.db`. The app uses this as a filesystem path, not a database URL. SQLite also creates WAL files beside the database, so they persist on the same volume. Save and redeploy/restart the service after attaching the volume and setting the variable.
-6. **Keep one backend replica.** SQLite is a file on one mounted volume; multiple backend replicas would not share it safely. Set the service's replica/instance count to one.
-7. **Optionally add Redis.** Redis is only needed for the BullMQ queue inspector; email records and scheduled sends use SQLite and the Railway process. If you want the inspector, add a Redis service in the same Railway project, then reference its host, port, and password from the backend service as `REDIS_HOST`, `REDIS_PORT`, and `REDIS_PASSWORD`.
-8. **Set the remaining backend variables.** In the backend service's **Variables** tab, add:
-
-   ```env
-   NODE_ENV=production
-   RAILPACK_NODE_VERSION=22
-   DATABASE_URL=/data/scheduler.db
-   APP_PASSWORD=use-a-unique-password-of-at-least-16-characters
-   SESSION_SECRET=use-a-random-secret-of-at-least-32-characters
-   FRONTEND_ORIGINS=https://YOUR_VERCEL_DOMAIN
-   SMTP_HOST=your-smtp-host
-   SMTP_PORT=587
-   SMTP_SECURE=false
-   SMTP_USER=your-smtp-user
-   SMTP_PASS=your-smtp-password
+   ```sh
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    ```
 
-   - `RAILPACK_NODE_VERSION=22` ensures Railway uses Node 22, which is compatible with the native SQLite dependency.
-   - `APP_PASSWORD` is the shared scheduler login. Use a unique password at least 16 characters long; the login screen lets you select one of the three saved sender profiles.
-   - Generate `SESSION_SECRET` with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. It signs login sessions; keep it private. Sessions expire after 12 hours.
-   - `FRONTEND_ORIGINS` must be the exact Vercel origin, such as `https://my-scheduler.vercel.app`, with no path. It allows the browser frontend to call the API.
-   - Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, and `SMTP_PASS` to your email provider's settings for real delivery. Keep passwords in Railway Variables. Without SMTP credentials, the backend uses Ethereal test email, which is not real delivery.
-   - `DATABASE_URL` must match the volume path from step 5. Do not put `APP_PASSWORD` or `SESSION_SECRET` in Vercel or in source control. The demo profile picker uses the Railway scheduler password; share it privately with trusted evaluators, never on the public login page.
+2. In one terminal, install and start the API:
 
-### Import existing local data into Railway
-
-Railway does not copy the local database automatically. A consistent SQLite backup for this workspace is available at `backend/data/scheduler-railway.db`; it was made with SQLite's backup API so it includes committed data from the WAL file. It passed SQLite's integrity check and contains 55 email records, the 3 example sender profiles, and 1 Slack configuration. Keep this database file private and do not commit it.
-
-1. **Check the scheduled records before starting the imported database.** The backup has 53 sent records and 2 overdue `rescheduled` records. On startup, the backend recovers scheduled and rescheduled jobs; overdue jobs are attempted immediately. To avoid real delivery while evaluating, leave the `SMTP_*` variables unset until you have reviewed those records. Without SMTP settings, the app uses Ethereal test email. The records remain in the database, though their status may change when the jobs are attempted.
-2. **Select the correct Railway volume.** In PowerShell at the repository root, run `railway login`, then `railway link` and select the Railway project and Production environment. Run `railway volume list` and identify the volume mounted at `/data`.
-3. **Upload the backup without replacing an existing database.** Run this command, replacing `YOUR_VOLUME_NAME` with the volume name or ID:
-
-   ```powershell
-   railway volume files --volume YOUR_VOLUME_NAME upload .\backend\data\scheduler-railway.db /scheduler-import.db
+   ```sh
+   cd backend
+   pnpm install --frozen-lockfile
+   pnpm dev
    ```
 
-   The remote path is relative to the volume, so `/scheduler-import.db` is available to the backend as `/data/scheduler-import.db`.
-4. **Switch the backend to the imported file.** In Railway's backend service Variables, set `DATABASE_URL` to `/data/scheduler-import.db`, then let Railway restart the service. This uses a new filename rather than overwriting `/data/scheduler.db`; the previous database remains on the volume as a fallback.
-5. **Verify the import.** Open the Vercel app and confirm the email history and all three sender profiles are present. The API only accepts sending identities already present in the database, so this import limits sending to those three profiles. They are sender profiles, not login accounts; select a profile and use the shared Railway scheduler password.
+   The API listens on `http://localhost:5000`; its default database is `backend/data/scheduler.db`.
 
-### 2. Deploy the frontend on Vercel
+3. In a second terminal, install and start the frontend:
 
-1. **Import the frontend.** Import the same GitHub repository into Vercel and select the branch containing the deployment code. Set **Root Directory** to `frontend`; this points Vercel at the React/Vite app and its lockfile.
-2. **Set the build options.** Use install command `pnpm install --frozen-lockfile`, build command `pnpm build`, and output directory `dist`. The included `frontend/vercel.json` rewrites client-side routes to `index.html`, so refreshing a nested route still loads the app.
-3. **Connect it to Railway.** Add this environment variable in Vercel's project settings for Production:
-
-   ```env
-   VITE_API_BASE_URL=https://YOUR-RAILWAY-DOMAIN/api
+   ```sh
+   cd frontend
+   pnpm install --frozen-lockfile
+   pnpm dev
    ```
 
-   Replace the placeholder with the public domain Railway assigns to the backend, followed by `/api` (for example, `https://scheduler-api.up.railway.app/api`). Do not add a trailing slash. This URL is public and is not a secret.
-4. **Deploy in order.** Deploy the Railway backend and generate its public domain first. Set `VITE_API_BASE_URL` to that domain, then deploy or redeploy Vercel. Copy Vercel's production origin (scheme and hostname only) into Railway's `FRONTEND_ORIGINS` variable and redeploy the backend if it wasn't already set.
+   Open `http://localhost:5173`. In development, the frontend uses `http://localhost:5000/api` automatically; no frontend `.env` file is needed.
 
-### Optional: Isolated public evaluation demo
+Redis is optional for local timer-based scheduling. To use the BullMQ queue inspector, run Redis and set `REDIS_HOST`, `REDIS_PORT`, and, if required, `REDIS_PASSWORD`. The production login requires the configured scheduler password. The local demo mode should only be enabled with a separate local database.
 
-The production app at `/` remains password protected. To let evaluators try the scheduler without credentials, create a **separate Railway backend service and volume** in the project. Do not reuse the production service, database, Redis, SMTP, or Slack credentials.
+Build either application from its directory with `pnpm build`.
 
-1. Connect the new Railway service to this repository and branch, set its root directory to `backend`, and use the same install, build, start, Node 22, and `/health` settings as the protected service. Name it clearly, such as `Mail-scheduler-public-demo`.
-2. Attach a **new volume dedicated to the demo** at `/data`, and configure exactly one replica. Set `DATABASE_URL=/data/scheduler-demo.db`; do not point this service at any production database file or volume.
-3. Configure the demo service variables:
+## Environment variables
 
-   ```env
-   NODE_ENV=production
-   RAILPACK_NODE_VERSION=22
-   PUBLIC_DEMO_MODE=true
-   DATABASE_URL=/data/scheduler-demo.db
-   SESSION_SECRET=use-a-random-secret-of-at-least-32-characters
-   FRONTEND_ORIGINS=https://YOUR_VERCEL_DOMAIN
-   ```
+Use the example files for local values: [`backend/.env.example`](./backend/.env.example) and [`frontend/.env.example`](./frontend/.env.example). Never put passwords or session secrets in the frontend or README.
 
-   Generate a unique session secret with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Do not set `APP_PASSWORD`, any `SMTP_USER`/`SMTP_PASS` values, Slack credentials, or production Redis variables. Demo mode refuses to start if a production database path, SMTP credentials, or Slack credentials are configured. It never sends email; jobs are simulated and clearly labeled. Slack is disabled. Schedule requests are capped at 10 recipients and 25 recipients per IP per hour.
-4. If you want the demo to show the existing mock history, copy the local SQLite snapshot to the new volume as `/scheduler-demo.db` **after deleting every row from its `slack_config` table**. Keep the original snapshot unchanged and private. Otherwise, leave the new volume empty; the app seeds the three sample sender profiles. Do not upload the snapshot to the production service or overwrite its database.
-5. Add `VITE_DEMO_API_BASE_URL=https://YOUR-DEMO-RAILWAY-DOMAIN/api` to Vercel's Production environment variables. Keep the existing `VITE_API_BASE_URL` pointing to the protected production API. Redeploy Vercel after setting the variable.
-6. Open `https://YOUR_VERCEL_DOMAIN/demo`. Selecting one of the three sender profiles signs into the sandbox in one click. The root path `/` continues to use the password-protected production service. Verify the demo service's `/health` response reports `"mode":"demo"` and confirm the production service still reports `"mode":"production"`.
+| Variable | Purpose |
+| --- | --- |
+| `PORT` | Express listen port; defaults to `5000`. |
+| `NODE_ENV` | Set to `production` on Railway. |
+| `RAILPACK_NODE_VERSION` | Railway Node version; deployed services use `22`. |
+| `DATABASE_URL` | SQLite **filesystem path** (not a network URL). Production uses `/data/scheduler.db`; demo uses `/data/scheduler-demo.db`. |
+| `PUBLIC_DEMO_MODE` | `true` only on the isolated demo service. |
+| `APP_PASSWORD` | Private shared password for production login; do not set it on the public demo. |
+| `SESSION_SECRET` | Private signing key for 12-hour API sessions; at least 32 characters. |
+| `FRONTEND_ORIGINS` | Comma-separated allowed browser origins. The deployed Vercel origin is `https://mail-scheduler-jet.vercel.app`. |
+| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | Optional Redis connection for BullMQ queue inspection. |
+| `MAX_EMAILS_PER_HOUR_PER_SENDER` | Enforced rolling-hour limit per sender. |
+| `MIN_DELAY_BETWEEN_EMAILS_MS` | Delay before each email dispatch. |
+| `WORKER_CONCURRENCY`, `MAX_EMAILS_PER_HOUR` | Currently reported in statistics; not enforced by a worker/global limiter. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | SMTP transport settings. Both user and password are required to use configured SMTP. |
+| `SLACK_WEBHOOK_URL` | Optional webhook for production rate-limit alerts; disabled in demo mode. |
+| `VITE_API_BASE_URL` | Frontend API base URL for the protected production service, ending in `/api`. |
+| `VITE_DEMO_API_BASE_URL` | Frontend API base URL for the isolated demo service, ending in `/api`. |
 
-### 3. Verify the deployment
+## Deployed configuration
 
-Open `https://YOUR-RAILWAY-DOMAIN/health`; it should return a healthy status. Sign in on Vercel by selecting a sender profile and entering the Railway scheduler password, schedule a test email to an address you control, and confirm the record remains after a Railway redeploy.
+### Vercel
 
-### Service sleep and scheduled sends
+- Project: `mail-scheduler`
+- Root directory: `frontend`
+- Production site: [https://mail-scheduler-jet.vercel.app](https://mail-scheduler-jet.vercel.app)
+- Public demo route: [https://mail-scheduler-jet.vercel.app/demo](https://mail-scheduler-jet.vercel.app/demo)
+- Production environment variables:
+  - `VITE_API_BASE_URL=https://mail-scheduler-production.up.railway.app/api`
+  - `VITE_DEMO_API_BASE_URL=https://mail-scheduler-public-demo-production.up.railway.app/api`
 
-Railway's Free plan sleeps after roughly 5–10 minutes without outbound traffic, and the first request wakes it with a cold-start delay. This app schedules sends using timers in the backend process, so a sleeping service can delay scheduled sends. Use Railway's always-on Hobby plan for scheduled delivery; Railway currently lists it at $5/month. Vercel's static frontend does not have this backend wake-up delay. See [Railway's Free plan details](https://docs.railway.com/pricing/free-plan) and [serverless behavior](https://docs.railway.com/deployments/serverless).
+### Railway production service
 
-SQLite data survives a deploy only when the database path is on the Railway volume. Back up the volume/database regularly; a volume is persistence, not a backup.
+- Service: `Mail-scheduler`
+- API: [https://mail-scheduler-production.up.railway.app](https://mail-scheduler-production.up.railway.app)
+- Root directory: `backend`
+- Node.js: 22
+- Build command: `pnpm build`
+- Start command: `pnpm start`
+- Health-check path: `/health`
+- Volume: `mail-scheduler-volume-Hcsv`, mounted at `/data`
+- Database path: `/data/scheduler.db`
+- Replica count: one
+- `APP_PASSWORD` and `SESSION_SECRET` are stored as private Railway variables and are intentionally not listed here.
 
-### Security and transition notes
+### Railway public demo service
 
-- A new Railway volume starts empty; data is not automatically imported from another deployment. Use the import steps above if you need to bring over an existing local database.
-- `backend/.env` was tracked previously. It is now excluded from future commits, but removing it from the latest commit does not erase older Git history. Rotate any credentials it contained before deploying or sharing the repository.
+- Service: `Mail-scheduler-public-demo`
+- API: [https://mail-scheduler-public-demo-production.up.railway.app](https://mail-scheduler-public-demo-production.up.railway.app)
+- Root directory: `backend`
+- Node.js: 22
+- Build command: `pnpm build`
+- Start command: `pnpm start`
+- Health-check path: `/health`
+- Volume: `mail-scheduler-public-demo-volume`, mounted at `/data`
+- Database path: `/data/scheduler-demo.db`
+- Replica count: one
+- `PUBLIC_DEMO_MODE=true`; no `APP_PASSWORD`, SMTP credentials, or Slack credentials are configured.
+- The isolated demo database contains the 55-record mock history and three sender profiles. Demo sends are simulated, and Slack endpoints are disabled.
 
----
+## Operational notes
 
-## 👥 GitHub Collaborators
-- Mitrajit (`Mitrajit`)
-- Yadav036 (`Yadav036`)
+- Check service health at the two `/health` links above. The demo health response reports `mode: "demo"`.
+- SQLite volume persistence is not a backup. Keep separate database backups before making manual database changes.
+- Keep the Railway services awake for on-time scheduled processing; timers run inside the API process.
+- The demo and production use different Railway services, volumes, database files, and browser session keys. Do not point the demo service at the production volume or database.
