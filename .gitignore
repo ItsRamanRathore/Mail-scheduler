@@ -9,3 +9,4 @@ data
 .firebaserc
 functions/lib
 *.tsbuildinfo
+.vercel

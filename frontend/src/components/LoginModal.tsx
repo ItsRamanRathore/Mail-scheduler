@@ -121,7 +121,17 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, publicDe
         <p className="mt-3 text-center text-[10px] font-medium text-slate-500">
           {publicDemo
             ? 'Choose a profile to enter the sandbox. Email delivery is simulated; no messages are sent.'
-            : 'Google OAuth is not used. Access requires the Railway scheduler password.'}
+            : (
+              <>
+                Google OAuth is not used. Access requires the Railway scheduler password.{' '}
+                <a
+                  href="https://mail-scheduler-jet.vercel.app/demo"
+                  className="font-bold text-blue-700 underline"
+                >
+                  Anyone can try the public demo.
+                </a>
+              </>
+            )}
         </p>
       </div>
     </div>
