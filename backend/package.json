@@ -2,6 +2,7 @@
   "name": "reachinbox-scheduler-backend",
   "version": "1.0.0",
   "description": "Production-grade Email Scheduler & Job Queue Service",
+  "packageManager": "pnpm@10.33.2",
   "engines": {
     "node": "22.x"
   },

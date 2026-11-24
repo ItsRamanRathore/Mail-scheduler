@@ -155,7 +155,7 @@ This deployment uses Vercel for the React frontend and Railway for the Express A
 
 1. Create a Railway project from this GitHub repository and add a service for it.
 2. Set the service **Root Directory** to `backend`.
-3. Use build command `pnpm install --frozen-lockfile && pnpm build`, start command `pnpm start`, and health-check path `/health`.
+3. Let Railway install dependencies with `pnpm install --frozen-lockfile --prefer-offline` (or its detected pnpm install command). Set the build command to `pnpm build`, start command to `pnpm start`, and health-check path to `/health`. Do not add a separate global `node-gyp` install command.
 4. Add a Railway volume mounted at `/data`. Set `DATABASE_URL=/data/scheduler.db` so SQLite and its WAL files persist across deployments and restarts.
 5. Keep the service to one replica because SQLite is local to the mounted volume.
 6. Add a Redis service if you want the BullMQ queue inspector, then map its host, port, and password to `REDIS_HOST`, `REDIS_PORT`, and `REDIS_PASSWORD`.
