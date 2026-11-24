@@ -1,5 +1,5 @@
-import { getRedisClient } from './redisService';
 import { config } from '../config';
+import { db } from '../db';
 import { sendSlackRateLimitAlert } from './slackService';
 
 export interface RateLimitCheckResult {
@@ -12,72 +12,59 @@ export interface RateLimitCheckResult {
 
 export class RateLimiterService {
   /**
-   * Generates a Redis key scoped to the current 1-hour window.
-   * e.g., "ratelimit:sender:alex@reachinbox.ai:2026-11-24-13"
+   * Calculates the exact number of emails actually sent by this sender in the rolling 1-hour window (past 3,600,000 ms)
+   * backed by SQLite for 100% precision.
    */
-  private getWindowKey(sender: string, timestamp: number = Date.now()): string {
-    const d = new Date(timestamp);
-    const windowTag = `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}-${d.getUTCDate()}-${d.getUTCHours()}`;
-    return `ratelimit:sender:${sender}:${windowTag}`;
+  public async getUsage(sender: string): Promise<{ count: number; limit: number }> {
+    const oneHourAgo = Date.now() - 3600 * 1000;
+    const row = db.prepare(
+      "SELECT COUNT(*) as count FROM emails WHERE sender = ? AND status = 'sent' AND sent_at >= ?"
+    ).get(sender, oneHourAgo) as { count: number };
+
+    return {
+      count: row ? row.count : 0,
+      limit: config.maxEmailsPerHourPerSender,
+    };
   }
 
   /**
-   * Check if sender can send an email right now.
-   * Atomic Redis counter with 1-hour TTL.
+   * Atomic check before allowing an email to be sent.
+   * If sender has already sent >= limit in the rolling hour, immediately block and postpone to next available window.
    */
   public async checkAndIncrement(sender: string): Promise<RateLimitCheckResult> {
-    const redis = getRedisClient();
-    const key = this.getWindowKey(sender);
     const limit = config.maxEmailsPerHourPerSender;
+    const oneHourAgo = Date.now() - 3600 * 1000;
 
-    try {
-      // INCR is atomic across all concurrent BullMQ workers
-      const count = await redis.incr(key);
-      if (count === 1) {
-        // Set expiry for 2 hours so it clears cleanly
-        await redis.expire(key, 7200);
-      }
+    // Fetch the earliest sent email in this 1-hour window to calculate the exact millisecond when the quota frees up
+    const stats = db.prepare(
+      "SELECT COUNT(*) as count, MIN(sent_at) as oldestSentAt FROM emails WHERE sender = ? AND status = 'sent' AND sent_at >= ?"
+    ).get(sender, oneHourAgo) as { count: number; oldestSentAt: number | null };
 
-      if (count > limit) {
-        // Calculate remaining ms until the next UTC hour
-        const now = new Date();
-        const nextHour = new Date(now);
-        nextHour.setUTCHours(nextHour.getUTCHours() + 1, 0, 1, 0);
-        const delayMs = Math.max(1000, nextHour.getTime() - now.getTime());
+    const currentCount = stats ? stats.count : 0;
 
-        // Dispatch Slack alert if threshold hit
-        if (count === limit + 1) {
-          await sendSlackRateLimitAlert(sender, count, limit, nextHour);
-        }
+    // Strict limit: If count has reached limit (50), DO NOT allow 51st email!
+    if (currentCount >= limit) {
+      // The earliest sent email will fall out of the 1-hour window at oldestSentAt + 3600000 ms
+      const earliestFreeTime = (stats.oldestSentAt ? stats.oldestSentAt + 3600 * 1000 : Date.now() + 60 * 1000) + 1000;
+      const delayMs = Math.max(2000, earliestFreeTime - Date.now());
+      const nextHour = new Date(earliestFreeTime);
 
-        return {
-          allowed: false,
-          currentCount: count,
-          limit,
-          delayMs,
-          nextWindowTimestamp: nextHour.getTime(),
-        };
-      }
+      // Trigger Slack notification
+      await sendSlackRateLimitAlert(sender, currentCount, limit, nextHour);
 
       return {
-        allowed: true,
-        currentCount: count,
+        allowed: false,
+        currentCount,
         limit,
+        delayMs,
+        nextWindowTimestamp: earliestFreeTime,
       };
-    } catch (err) {
-      console.error('RateLimiter error:', err);
-      // Fallback safe allow
-      return { allowed: true, currentCount: 1, limit };
     }
-  }
 
-  public async getUsage(sender: string): Promise<{ count: number; limit: number }> {
-    const redis = getRedisClient();
-    const key = this.getWindowKey(sender);
-    const val = await redis.get(key);
     return {
-      count: val ? parseInt(val, 10) : 0,
-      limit: config.maxEmailsPerHourPerSender,
+      allowed: true,
+      currentCount: currentCount + 1,
+      limit,
     };
   }
 }

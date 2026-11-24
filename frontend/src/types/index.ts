@@ -31,6 +31,27 @@ export interface DashboardStats {
   minDelayBetweenEmailsMs: number;
 }
 
+export interface QueueWorker {
+  id: string;
+  concurrency: number;
+  status: string;
+  processedCount: number;
+}
+
+export interface QueueDetails {
+  name: string;
+  counts: {
+    waiting: number;
+    active: number;
+    completed: number;
+    failed: number;
+    delayed: number;
+    paused: number;
+  };
+  workers: QueueWorker[];
+  jobs: EmailItem[];
+}
+
 export interface UserProfile {
   name: string;
   email: string;

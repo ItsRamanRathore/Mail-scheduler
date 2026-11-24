@@ -2,12 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { StatsOverview } from './components/StatsOverview';
 import { EmailTable } from './components/EmailTable';
+import { QueueDashboard } from './components/QueueDashboard';
 import { ComposeModal } from './components/ComposeModal';
 import { SlackModal } from './components/SlackModal';
 import { LoginModal } from './components/LoginModal';
-import { EmailItem, DashboardStats, SenderOption, UserProfile } from './types';
+import { EmailItem, DashboardStats, SenderOption, UserProfile, QueueDetails } from './types';
 import { api } from './services/api';
-import { Calendar, CheckCircle2, Sliders, Shield, Zap } from 'lucide-react';
+import { Calendar, CheckCircle2, Shield, Layers } from 'lucide-react';
 
 export function App() {
   const [user, setUser] = useState<UserProfile | null>(() => {
@@ -15,11 +16,13 @@ export function App() {
     return saved ? JSON.parse(saved) : null;
   });
 
-  const [activeTab, setActiveTab] = useState<'scheduled' | 'sent'>('scheduled');
+  const [activeTab, setActiveTab] = useState<'scheduled' | 'sent' | 'queue'>('scheduled');
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [queueDetails, setQueueDetails] = useState<QueueDetails | null>(null);
   const [senders, setSenders] = useState<SenderOption[]>([]);
   const [emails, setEmails] = useState<EmailItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Modals
@@ -27,18 +30,21 @@ export function App() {
   const [isSlackOpen, setIsSlackOpen] = useState<boolean>(false);
   const [slackConnected, setSlackConnected] = useState<boolean>(false);
 
-  // Fetch all dashboard data
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  // Fetch all dashboard data seamlessly without scroll jumping or flashing
+  const fetchData = useCallback(async (isSilent = false) => {
+    if (!isSilent) {
+      setIsRefreshing(true);
+    }
     try {
       const [statsRes, emailRes, slackRes] = await Promise.all([
         api.getStats(),
-        api.getEmails(activeTab, searchQuery),
+        api.getEmails(activeTab === 'queue' ? undefined : activeTab, searchQuery),
         api.getSlackStatus(),
       ]);
 
       if (statsRes.success) {
         setStats(statsRes.stats);
+        setQueueDetails(statsRes.queue || null);
         setSenders(statsRes.senders || []);
       }
       if (emailRes.success) {
@@ -50,14 +56,19 @@ export function App() {
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
     } finally {
-      setLoading(false);
+      setIsInitialLoad(false);
+      setIsRefreshing(false);
     }
   }, [activeTab, searchQuery]);
 
   useEffect(() => {
-    fetchData();
-    // Auto refresh every 5 seconds for live queue tracking
-    const interval = setInterval(fetchData, 5000);
+    // Initial fetch
+    fetchData(false);
+
+    // Silent background poll that preserves scroll position and never flashes
+    const interval = setInterval(() => {
+      fetchData(true);
+    }, 4000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -76,59 +87,62 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#080d1a] flex flex-col selection:bg-indigo-500/30">
-      {/* Top Navigation */}
+    <div className="min-h-screen bg-[#e8ecf2] flex flex-col text-slate-800">
+      {/* Skeuomorphic Header */}
       <Header
         user={user}
         onLogout={handleLogout}
         slackConnected={slackConnected}
         onOpenSlackModal={() => setIsSlackOpen(true)}
         onOpenCompose={() => setIsComposeOpen(true)}
+        onOpenQueue={() => setActiveTab('queue')}
       />
 
-      {/* Main Body */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      {/* Main Console Workspace */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-7">
         {/* Metric Cards Banner */}
         <StatsOverview stats={stats} />
 
-        {/* Sender Quota & Concurrency Insight Bar */}
-        <div className="glass-card rounded-2xl p-4 border border-slate-800 flex flex-wrap items-center justify-between gap-4 text-xs">
-          <div className="flex items-center gap-6">
-            <span className="font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-              <Shield className="w-4 h-4 text-indigo-400" /> Multi-Sender Quota Monitor:
+        {/* Multi-Sender Quota Instrument Bar */}
+        <div className="skeuo-panel p-4 flex flex-wrap items-center justify-between gap-4 text-xs">
+          <div className="flex items-center gap-4 flex-wrap">
+            <span className="font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5 drop-shadow-[0_1px_0_rgba(255,255,255,0.8)]">
+              <Shield className="w-4 h-4 text-amber-700 stroke-[2.5]" />
+              Sender Quotas (Sliding Hour):
             </span>
-            <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
               {senders.map((s) => (
-                <div key={s.id} className="flex items-center gap-2 bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-800">
-                  <span className="text-slate-300 font-medium">{s.display_name.split(' ')[0]}:</span>
-                  <span className="font-mono text-indigo-300 font-semibold">{s.hourlyUsage}</span>
-                  <span className="text-slate-500">/{s.hourlyLimit} hr</span>
+                <div key={s.id} className="skeuo-inset px-3 py-1.5 rounded-xl flex items-center gap-2">
+                  <span className="font-bold text-slate-700">{s.display_name.split(' ')[0]}:</span>
+                  <span className="font-mono font-black text-amber-800">{s.hourlyUsage}</span>
+                  <span className="text-slate-400 font-semibold">/{s.hourlyLimit} hr</span>
                 </div>
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-2 text-slate-400">
-            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Worker Queue Alive & Safe</span>
+          <div className="flex items-center gap-2 font-bold text-slate-600">
+            <span className="w-2.5 h-2.5 rounded-full skeuo-led-green" />
+            <span>Worker Queue Normal</span>
           </div>
         </div>
 
-        {/* Tabs & Table Container */}
+        {/* Tactile Tab Switcher & Table Container */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between">
+            {/* Tactile Rocker Switch for Tabs */}
+            <div className="skeuo-inset p-1.5 rounded-2xl inline-flex items-center gap-1.5 flex-wrap">
               <button
                 onClick={() => setActiveTab('scheduled')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                className={`px-5 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
                   activeTab === 'scheduled'
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    ? 'skeuo-button text-amber-900 border border-white'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <Calendar className="w-4 h-4" />
-                <span>Scheduled Emails</span>
+                <Calendar className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Scheduled Sequence</span>
                 {stats && (
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === 'scheduled' ? 'bg-indigo-700 text-indigo-100' : 'bg-slate-800 text-slate-400'}`}>
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${activeTab === 'scheduled' ? 'skeuo-inset text-amber-800' : 'bg-slate-300 text-slate-600'}`}>
                     {stats.scheduled}
                   </span>
                 )}
@@ -136,42 +150,66 @@ export function App() {
 
               <button
                 onClick={() => setActiveTab('sent')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                className={`px-5 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
                   activeTab === 'sent'
-                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    ? 'skeuo-button text-emerald-900 border border-white'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Sent Emails</span>
+                <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Sent Records</span>
                 {stats && (
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === 'sent' ? 'bg-emerald-700 text-emerald-100' : 'bg-slate-800 text-slate-400'}`}>
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${activeTab === 'sent' ? 'skeuo-inset text-emerald-800' : 'bg-slate-300 text-slate-600'}`}>
                     {stats.sent}
                   </span>
                 )}
               </button>
+
+              <button
+                onClick={() => setActiveTab('queue')}
+                className={`px-5 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
+                  activeTab === 'queue'
+                    ? 'skeuo-button text-indigo-950 border border-white'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 stroke-[2.5] text-amber-700" />
+                <span>BullMQ Queue Board</span>
+                <span className="w-2 h-2 rounded-full skeuo-led-green ml-0.5" />
+              </button>
             </div>
           </div>
 
-          {/* Email Records Table */}
-          <EmailTable
-            emails={emails}
-            type={activeTab}
-            loading={loading}
-            onRefresh={fetchData}
-            onCancel={handleCancelEmail}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-          />
+          {/* Conditional View: Queue Dashboard or Email Records */}
+          {activeTab === 'queue' ? (
+            <QueueDashboard
+              queue={queueDetails}
+              onRefresh={() => fetchData(false)}
+              loading={isRefreshing}
+            />
+          ) : (
+            <EmailTable
+              emails={emails}
+              type={activeTab}
+              loading={isInitialLoad}
+              isRefreshing={isRefreshing}
+              onRefresh={() => fetchData(false)}
+              onCancel={handleCancelEmail}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+            />
+          )}
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/60 py-6 text-center text-xs text-slate-500">
-        <p>ReachInbox Engineering Hiring Assignment • Production-grade Email Scheduler & Dashboard</p>
+      <footer className="mt-auto border-t border-slate-300/80 py-6 text-center text-xs font-semibold text-slate-500">
+        <p className="drop-shadow-[0_1px_0_rgba(255,255,255,0.8)]">
+          ReachInbox Engineering Hiring Assignment • Production Email Scheduler Console
+        </p>
       </footer>
 
-      {/* Google Login Prompt (if logged out) */}
+      {/* Google Login Prompt */}
       {!user && <LoginModal onLoginSuccess={(u) => setUser(u)} />}
 
       {/* Compose Sequence Modal */}

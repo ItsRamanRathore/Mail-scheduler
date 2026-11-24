@@ -57,8 +57,12 @@ class SearchService {
       let sql = 'SELECT * FROM emails';
       const params: any[] = [];
       if (status) {
-        sql += ' WHERE status = ?';
-        params.push(status);
+        if (status === 'scheduled') {
+          sql += " WHERE status IN ('scheduled', 'rescheduled')";
+        } else {
+          sql += ' WHERE status = ?';
+          params.push(status);
+        }
       }
       sql += ' ORDER BY scheduled_at DESC LIMIT 100';
       return db.prepare(sql).all(...params) as EmailSearchDoc[];
@@ -78,7 +82,11 @@ class SearchService {
     }));
 
     if (status) {
-      matched = matched.filter((e) => e.status === status);
+      if (status === 'scheduled') {
+        matched = matched.filter((e) => e.status === 'scheduled' || e.status === 'rescheduled');
+      } else {
+        matched = matched.filter((e) => e.status === status);
+      }
     }
 
     return matched;

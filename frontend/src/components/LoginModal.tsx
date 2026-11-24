@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, ShieldAlert, Cpu, Sparkles, LogIn, ArrowRight } from 'lucide-react';
+import { Mail, ShieldCheck, Cpu, ArrowRight } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface LoginModalProps {
@@ -9,7 +9,7 @@ interface LoginModalProps {
 export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
 
-  const handleSimulateGoogleLogin = (emailType: 'alex' | 'founder' | 'custom') => {
+  const handleSimulateGoogleLogin = (emailType: 'alex' | 'founder') => {
     setLoading(true);
     setTimeout(() => {
       let user: UserProfile;
@@ -20,47 +20,38 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
           avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
           tenantId: 'tenant-reachinbox-us',
         };
-      } else if (emailType === 'founder') {
+      } else {
         user = {
           name: 'Priya Sharma',
           email: 'founder@reachinbox.ai',
           avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
           tenantId: 'tenant-reachinbox-executive',
         };
-      } else {
-        user = {
-          name: 'Growth Engineer',
-          email: 'dev@reachinbox.ai',
-          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-          tenantId: 'tenant-reachinbox-dev',
-        };
       }
       localStorage.setItem('reachinbox_user', JSON.stringify(user));
       setLoading(false);
       onLoginSuccess(user);
-    }, 600);
+    }, 400);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-md p-8 glass-card rounded-2xl border border-slate-700/60 shadow-2xl shadow-indigo-950/50">
-        {/* Glow backdrop effect */}
-        <div className="absolute -top-16 -left-16 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-16 -right-16 w-48 h-48 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="text-center mb-8 relative">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-500 to-violet-600 mb-4 shadow-lg shadow-indigo-500/25">
-            <Mail className="w-7 h-7 text-white" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+      <div className="relative w-full max-w-md p-8 skeuo-panel shadow-2xl border border-white">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl skeuo-inset mb-4 text-amber-700">
+            <Mail className="w-8 h-8 stroke-[2.2]" />
           </div>
-          <h2 className="text-2xl font-bold tracking-tight text-white">ReachInbox Scheduler</h2>
-          <p className="text-sm text-slate-400 mt-1">Sign in with Google OAuth to access the email engine</p>
+          <h2 className="text-2xl font-black tracking-tight text-slate-800 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]">
+            ReachInbox Scheduler
+          </h2>
+          <p className="text-xs font-semibold text-slate-500 mt-1">Authenticate via Google OAuth to access queue console</p>
         </div>
 
         <div className="space-y-4">
           <button
             onClick={() => handleSimulateGoogleLogin('alex')}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white hover:bg-slate-100 text-slate-900 rounded-xl font-semibold shadow-md transition-all transform active:scale-98"
+            className="w-full skeuo-button py-3 px-4 rounded-xl flex items-center justify-center gap-3 text-slate-800 font-bold text-sm cursor-pointer"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
@@ -86,19 +77,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
           <button
             onClick={() => handleSimulateGoogleLogin('founder')}
             disabled={loading}
-            className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-800/80 hover:bg-slate-800 text-slate-300 rounded-xl font-medium border border-slate-700 transition-colors text-sm"
+            className="w-full skeuo-button py-2.5 px-4 rounded-xl flex items-center justify-between text-slate-700 font-bold text-xs"
           >
             <span>Sign in as Priya Sharma (Founder)</span>
-            <ArrowRight className="w-4 h-4 text-slate-400" />
+            <ArrowRight className="w-4 h-4 text-slate-500" />
           </button>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-slate-800 flex items-center justify-between text-xs text-slate-500">
+        <div className="mt-8 pt-5 border-t border-slate-300 flex items-center justify-between text-[11px] font-bold text-slate-500">
           <span className="flex items-center gap-1.5">
-            <Cpu className="w-3.5 h-3.5 text-indigo-400" /> BullMQ Engine
+            <Cpu className="w-3.5 h-3.5 text-amber-700" /> BullMQ Engine
           </span>
           <span className="flex items-center gap-1.5">
-            <ShieldAlert className="w-3.5 h-3.5 text-emerald-400" /> Safe Rate Limiting
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" /> Safe Rate Limiting
           </span>
         </div>
       </div>

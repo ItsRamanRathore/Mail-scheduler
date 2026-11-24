@@ -1,6 +1,6 @@
 import React from 'react';
 import { DashboardStats } from '../types';
-import { Calendar, CheckCircle, AlertTriangle, Layers, Clock, ShieldCheck, Zap } from 'lucide-react';
+import { Calendar, CheckCircle, ShieldAlert, Cpu, Activity, Clock, Zap } from 'lucide-react';
 
 interface StatsOverviewProps {
   stats: DashboardStats | null;
@@ -9,90 +9,115 @@ interface StatsOverviewProps {
 export const StatsOverview: React.FC<StatsOverviewProps> = ({ stats }) => {
   if (!stats) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-28 rounded-2xl bg-slate-900/60 border border-slate-800" />
+          <div key={i} className="h-32 rounded-2xl skeuo-panel animate-pulse" />
         ))}
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {/* 1. Scheduled Emails Card */}
-      <div className="glass-card glass-card-hover rounded-2xl p-5 border border-slate-800 relative overflow-hidden group">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      {/* 1. Scheduled Queue Instrument Card */}
+      <div className="skeuo-panel p-5 relative overflow-hidden group">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Scheduled Queue</p>
-            <h3 className="text-3xl font-extrabold text-white mt-1 group-hover:text-indigo-400 transition-colors">
-              {stats.scheduled}
-            </h3>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 drop-shadow-[0_1px_0_rgba(255,255,255,0.8)]">
+              Scheduled Queue
+            </span>
+            <div className="flex items-baseline gap-2 mt-1">
+              <h3 className="text-3xl font-black text-slate-800 tracking-tight drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]">
+                {stats.scheduled}
+              </h3>
+              <span className="text-xs font-semibold text-amber-700">queued</span>
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-            <Calendar className="w-6 h-6" />
+          <div className="w-12 h-12 rounded-xl skeuo-inset flex items-center justify-center text-amber-600">
+            <Clock className="w-6 h-6 stroke-[2.2]" />
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
-          <Clock className="w-3.5 h-3.5 text-indigo-400" />
-          <span>BullMQ delayed persistence</span>
+        <div className="mt-4 pt-3 border-t border-slate-300/70 flex items-center justify-between text-[11px] font-medium text-slate-500">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full skeuo-led-amber" />
+            <span>BullMQ Delayed Engine</span>
+          </span>
+          <span className="font-mono font-bold text-slate-600">Active</span>
         </div>
       </div>
 
-      {/* 2. Sent Emails Card */}
-      <div className="glass-card glass-card-hover rounded-2xl p-5 border border-slate-800 relative overflow-hidden group">
+      {/* 2. Delivered Emails Instrument Card */}
+      <div className="skeuo-panel p-5 relative overflow-hidden group">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Delivered</p>
-            <h3 className="text-3xl font-extrabold text-white mt-1 group-hover:text-emerald-400 transition-colors">
-              {stats.sent}
-            </h3>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 drop-shadow-[0_1px_0_rgba(255,255,255,0.8)]">
+              Dispatched Emails
+            </span>
+            <div className="flex items-baseline gap-2 mt-1">
+              <h3 className="text-3xl font-black text-slate-800 tracking-tight drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]">
+                {stats.sent}
+              </h3>
+              <span className="text-xs font-semibold text-emerald-700">sent</span>
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-            <CheckCircle className="w-6 h-6" />
+          <div className="w-12 h-12 rounded-xl skeuo-inset flex items-center justify-center text-emerald-600">
+            <CheckCircle className="w-6 h-6 stroke-[2.2]" />
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
-          <Zap className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Via Ethereal SMTP</span>
+        <div className="mt-4 pt-3 border-t border-slate-300/70 flex items-center justify-between text-[11px] font-medium text-slate-500">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full skeuo-led-green" />
+            <span>Ethereal SMTP Relay</span>
+          </span>
+          <span className="font-mono font-bold text-slate-600">Verified</span>
         </div>
       </div>
 
-      {/* 3. Rate Limit / Sender Policy */}
-      <div className="glass-card glass-card-hover rounded-2xl p-5 border border-slate-800 relative overflow-hidden group">
+      {/* 3. Rate Limit / Sender Policy Instrument Card */}
+      <div className="skeuo-panel p-5 relative overflow-hidden group">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Hourly Limit / Sender</p>
-            <h3 className="text-3xl font-extrabold text-white mt-1 group-hover:text-amber-400 transition-colors">
-              {stats.maxEmailsPerHourPerSender}
-              <span className="text-sm font-normal text-slate-400">/hr</span>
-            </h3>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 drop-shadow-[0_1px_0_rgba(255,255,255,0.8)]">
+              Rate Limit / Sender
+            </span>
+            <div className="flex items-baseline gap-1 mt-1">
+              <h3 className="text-3xl font-black text-slate-800 tracking-tight drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]">
+                {stats.maxEmailsPerHourPerSender}
+              </h3>
+              <span className="text-xs font-semibold text-slate-500">/hr per identity</span>
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-            <ShieldCheck className="w-6 h-6" />
+          <div className="w-12 h-12 rounded-xl skeuo-inset flex items-center justify-center text-amber-600">
+            <ShieldAlert className="w-6 h-6 stroke-[2.2]" />
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
-          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-          <span>Redis window token limiter</span>
+        <div className="mt-4 pt-3 border-t border-slate-300/70 flex items-center justify-between text-[11px] font-medium text-slate-500">
+          <span>Sliding-Window Guard</span>
+          <span className="font-mono font-bold text-amber-700">Strict</span>
         </div>
       </div>
 
-      {/* 4. Concurrency & Delay */}
-      <div className="glass-card glass-card-hover rounded-2xl p-5 border border-slate-800 relative overflow-hidden group">
+      {/* 4. Concurrency & Delay Instrument Card */}
+      <div className="skeuo-panel p-5 relative overflow-hidden group">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Worker Concurrency</p>
-            <h3 className="text-3xl font-extrabold text-white mt-1 group-hover:text-violet-400 transition-colors">
-              {stats.workerConcurrency}
-              <span className="text-sm font-normal text-slate-400"> parallel</span>
-            </h3>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 drop-shadow-[0_1px_0_rgba(255,255,255,0.8)]">
+              Worker Concurrency
+            </span>
+            <div className="flex items-baseline gap-1 mt-1">
+              <h3 className="text-3xl font-black text-slate-800 tracking-tight drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]">
+                {stats.workerConcurrency}
+              </h3>
+              <span className="text-xs font-semibold text-slate-500">parallel channels</span>
+            </div>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
-            <Layers className="w-6 h-6" />
+          <div className="w-12 h-12 rounded-xl skeuo-inset flex items-center justify-center text-slate-700">
+            <Cpu className="w-6 h-6 stroke-[2.2]" />
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
-          <span>Min delay: {stats.minDelayBetweenEmailsMs / 1000}s between sends</span>
+        <div className="mt-4 pt-3 border-t border-slate-300/70 flex items-center justify-between text-[11px] font-medium text-slate-500">
+          <span>Min Send Interval</span>
+          <span className="font-mono font-bold text-slate-700">{stats.minDelayBetweenEmailsMs / 1000}s Delay</span>
         </div>
       </div>
     </div>
