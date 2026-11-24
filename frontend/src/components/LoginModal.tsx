@@ -93,7 +93,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
             <span>{loading ? 'Signing in...' : 'Continue'}</span>
           </button>
           <p className="text-center text-xs font-semibold text-slate-500">
-            Use the scheduler password to sign in.
+            Get the scheduler password from the project owner.
           </p>
 
           {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
