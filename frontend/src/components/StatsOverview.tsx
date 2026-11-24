@@ -1,6 +1,6 @@
 import React from 'react';
 import { DashboardStats } from '../types';
-import { Calendar, CheckCircle, ShieldAlert, Cpu, Activity, Clock, Zap } from 'lucide-react';
+import { CheckCircle, ShieldAlert, Cpu, Clock } from 'lucide-react';
 
 interface StatsOverviewProps {
   stats: DashboardStats | null;
@@ -40,7 +40,7 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ stats }) => {
         <div className="mt-4 pt-3 border-t border-slate-300/70 flex items-center justify-between text-[11px] font-medium text-slate-500">
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full skeuo-led-amber" />
-            <span>BullMQ Delayed Engine</span>
+            <span>Durable Scheduling Engine</span>
           </span>
           <span className="font-mono font-bold text-slate-600">Active</span>
         </div>
@@ -67,7 +67,7 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ stats }) => {
         <div className="mt-4 pt-3 border-t border-slate-300/70 flex items-center justify-between text-[11px] font-medium text-slate-500">
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full skeuo-led-green" />
-            <span>Ethereal SMTP Relay</span>
+            <span>SMTP Email Delivery</span>
           </span>
           <span className="font-mono font-bold text-slate-600">Verified</span>
         </div>

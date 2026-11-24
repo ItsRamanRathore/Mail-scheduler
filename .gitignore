@@ -3,3 +3,9 @@ dist
 data
 *.log
 .env.local
+.env
+.env.*
+!.env.example
+.firebaserc
+functions/lib
+*.tsbuildinfo

@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "start": "ts-node src/index.ts",
-    "dev": "nodemon --watch src --ext ts --exec ts-node src/index.ts"
+    "dev": "nodemon --watch src --ext ts --exec ts-node src/index.ts",
+    "migrate:firestore": "node scripts/migrate-sqlite-to-firestore.cjs"
   },
   "dependencies": {
     "@bull-board/api": "^6.7.1",
@@ -16,6 +17,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "firebase-admin": "^13.0.0",
     "ioredis": "^5.5.0",
     "ioredis-mock": "^8.13.1",
     "minisearch": "^7.2.0",

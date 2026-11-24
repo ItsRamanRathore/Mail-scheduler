@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { api } from '../services/api';
-import { X, CheckCircle2, AlertCircle, Hash, BellRing, Unlink } from 'lucide-react';
+import { X, AlertCircle, Hash, BellRing, Unlink } from 'lucide-react';
 
 interface SlackModalProps {
   isOpen: boolean;

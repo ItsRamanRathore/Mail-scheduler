@@ -40,6 +40,7 @@ export interface QueueWorker {
 
 export interface QueueDetails {
   name: string;
+  maxConcurrentDispatches?: number;
   counts: {
     waiting: number;
     active: number;

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { EmailItem } from '../types';
-import { Search, ExternalLink, Clock, CheckCircle2, AlertCircle, RefreshCw, XCircle, Trash2, Mail } from 'lucide-react';
+import { Search, ExternalLink, RefreshCw, XCircle, Trash2, Mail } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 
 interface EmailTableProps {

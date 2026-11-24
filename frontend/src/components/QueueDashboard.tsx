@@ -1,6 +1,6 @@
 import React from 'react';
 import { QueueDetails } from '../types';
-import { Layers, Activity, CheckCircle, Clock, AlertTriangle, Play, RefreshCw, Cpu, Server } from 'lucide-react';
+import { Layers, RefreshCw, Server } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 
 interface QueueDashboardProps {
@@ -14,7 +14,7 @@ export const QueueDashboard: React.FC<QueueDashboardProps> = ({ queue, onRefresh
     return (
       <div className="p-8 text-center text-slate-500 font-bold">
         <RefreshCw className="w-8 h-8 animate-spin mx-auto text-amber-700 mb-2" />
-        <span>Loading BullMQ telemetry...</span>
+        <span>Loading queue status...</span>
       </div>
     );
   }
@@ -26,38 +26,42 @@ export const QueueDashboard: React.FC<QueueDashboardProps> = ({ queue, onRefresh
       {/* Top Telemetry Meters */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
         <div className="skeuo-panel p-3.5 text-center">
-          <p className="text-[10px] font-extrabold uppercase text-slate-500">Waiting</p>
+          <p className="text-[10px] font-extrabold uppercase text-slate-500">Scheduled</p>
           <p className="text-2xl font-black text-slate-700 mt-1">{counts.waiting}</p>
-          <span className="text-[10px] text-amber-700 font-bold">In Buffer</span>
+          <span className="text-[10px] text-amber-700 font-bold">Pending sends</span>
         </div>
 
         <div className="skeuo-panel p-3.5 text-center">
-          <p className="text-[10px] font-extrabold uppercase text-slate-500">Active</p>
+          <p className="text-[10px] font-extrabold uppercase text-slate-500">Sending</p>
           <p className="text-2xl font-black text-amber-600 mt-1">{counts.active}</p>
-          <span className="text-[10px] text-slate-500 font-bold">Processing</span>
+          <span className="text-[10px] text-slate-500 font-bold">In progress</span>
         </div>
 
         <div className="skeuo-panel p-3.5 text-center">
-          <p className="text-[10px] font-extrabold uppercase text-slate-500">Delayed</p>
+          <p className="text-[10px] font-extrabold uppercase text-slate-500">
+            {queue.name === 'sendScheduledEmail' ? 'Deferred' : 'Delayed'}
+          </p>
           <p className="text-2xl font-black text-indigo-700 mt-1">{counts.delayed}</p>
-          <span className="text-[10px] text-indigo-700 font-bold">Scheduled</span>
+          <span className="text-[10px] text-indigo-700 font-bold">
+            {queue.name === 'sendScheduledEmail' ? 'Rate-limited' : 'Scheduled'}
+          </span>
         </div>
 
         <div className="skeuo-panel p-3.5 text-center">
-          <p className="text-[10px] font-extrabold uppercase text-slate-500">Completed</p>
+          <p className="text-[10px] font-extrabold uppercase text-slate-500">Sent</p>
           <p className="text-2xl font-black text-emerald-700 mt-1">{counts.completed}</p>
-          <span className="text-[10px] text-emerald-700 font-bold">Delivered</span>
+          <span className="text-[10px] text-emerald-700 font-bold">Recorded</span>
         </div>
 
         <div className="skeuo-panel p-3.5 text-center">
           <p className="text-[10px] font-extrabold uppercase text-slate-500">Failed</p>
           <p className="text-2xl font-black text-rose-700 mt-1">{counts.failed}</p>
-          <span className="text-[10px] text-rose-600 font-bold">Retries / Drop</span>
+          <span className="text-[10px] text-rose-600 font-bold">Delivery errors</span>
         </div>
 
         <div className="skeuo-panel p-3.5 text-center">
-          <p className="text-[10px] font-extrabold uppercase text-slate-500">Concurrency</p>
-          <p className="text-2xl font-black text-slate-800 mt-1">{workers[0]?.concurrency || 5}</p>
+          <p className="text-[10px] font-extrabold uppercase text-slate-500">Max concurrency</p>
+          <p className="text-2xl font-black text-slate-800 mt-1">{queue.maxConcurrentDispatches || workers[0]?.concurrency || 5}</p>
           <span className="text-[10px] text-slate-600 font-bold">Parallel Jobs</span>
         </div>
       </div>
@@ -68,7 +72,7 @@ export const QueueDashboard: React.FC<QueueDashboardProps> = ({ queue, onRefresh
           <div className="flex items-center gap-2">
             <Server className="w-5 h-5 text-amber-700 stroke-[2.2]" />
             <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">
-              BullMQ Worker Nodes & Threads
+              {workers.length ? 'Worker Nodes & Threads' : 'Managed Task Queue'}
             </h3>
           </div>
           <button
@@ -81,7 +85,11 @@ export const QueueDashboard: React.FC<QueueDashboardProps> = ({ queue, onRefresh
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-          {workers.map((w, idx) => (
+          {workers.length === 0 ? (
+            <p className="text-xs font-semibold text-slate-600">
+              Firebase Cloud Tasks schedules and dispatches jobs for this deployment.
+            </p>
+          ) : workers.map((w, idx) => (
             <div key={idx} className="skeuo-inset p-4 rounded-xl flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <span className={`w-3 h-3 rounded-full ${w.status === 'running' ? 'skeuo-led-green' : 'skeuo-led-amber'}`} />
@@ -106,10 +114,10 @@ export const QueueDashboard: React.FC<QueueDashboardProps> = ({ queue, onRefresh
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-amber-800 stroke-[2.5]" />
             <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">
-              Live Queue Registry ({queue.name})
+                Recent Email Jobs ({queue.name})
             </h4>
           </div>
-          <span className="text-[11px] font-bold text-slate-500">Real-time BullMQ Delayed Pipeline</span>
+          <span className="text-[11px] font-bold text-slate-500">Email task status</span>
         </div>
 
         <div className="overflow-x-auto">

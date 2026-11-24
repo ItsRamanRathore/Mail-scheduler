@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { SenderOption } from '../types';
 import { api } from '../services/api';
-import { X, Upload, Mail, Clock, Calendar, AlertCircle, FileText, Send } from 'lucide-react';
+import { X, Upload, Mail, Clock, Calendar, AlertCircle, Send } from 'lucide-react';
 
 interface ComposeModalProps {
   isOpen: boolean;
@@ -122,7 +122,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               <h2 className="text-lg font-black text-slate-800 drop-shadow-[0_1px_0_rgba(255,255,255,0.8)]">
                 Compose Outbound Sequence
               </h2>
-              <p className="text-xs font-semibold text-slate-500">Enqueues delayed jobs into BullMQ with rate-limit protection</p>
+              <p className="text-xs font-semibold text-slate-500">Schedules durable jobs with sender rate-limit protection</p>
             </div>
           </div>
           <button

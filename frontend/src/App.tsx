@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { StatsOverview } from './components/StatsOverview';
 import { EmailTable } from './components/EmailTable';
@@ -8,13 +8,13 @@ import { SlackModal } from './components/SlackModal';
 import { LoginModal } from './components/LoginModal';
 import { EmailItem, DashboardStats, SenderOption, UserProfile, QueueDetails } from './types';
 import { api } from './services/api';
+import { auth } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { Calendar, CheckCircle2, Shield, Layers } from 'lucide-react';
 
 export function App() {
-  const [user, setUser] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem('reachinbox_user');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [authReady, setAuthReady] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'scheduled' | 'sent' | 'queue'>('scheduled');
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -29,6 +29,22 @@ export function App() {
   const [isComposeOpen, setIsComposeOpen] = useState<boolean>(false);
   const [isSlackOpen, setIsSlackOpen] = useState<boolean>(false);
   const [slackConnected, setSlackConnected] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!auth) {
+      setAuthReady(true);
+      return;
+    }
+    return onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser ? {
+        name: firebaseUser.displayName || firebaseUser.email || 'Google user',
+        email: firebaseUser.email || '',
+        avatar: firebaseUser.photoURL || '',
+        tenantId: firebaseUser.uid,
+      } : null);
+      setAuthReady(true);
+    });
+  }, []);
 
   // Fetch all dashboard data seamlessly without scroll jumping or flashing
   const fetchData = useCallback(async (isSilent = false) => {
@@ -62,6 +78,7 @@ export function App() {
   }, [activeTab, searchQuery]);
 
   useEffect(() => {
+    if (!authReady || !user) return;
     // Initial fetch
     fetchData(false);
 
@@ -70,10 +87,10 @@ export function App() {
       fetchData(true);
     }, 4000);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, [authReady, fetchData, user]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('reachinbox_user');
+  const handleLogout = async () => {
+    if (auth) await signOut(auth);
     setUser(null);
   };
 
@@ -174,7 +191,7 @@ export function App() {
                 }`}
               >
                 <Layers className="w-3.5 h-3.5 stroke-[2.5] text-amber-700" />
-                <span>BullMQ Queue Board</span>
+                <span>Queue Board</span>
                 <span className="w-2 h-2 rounded-full skeuo-led-green ml-0.5" />
               </button>
             </div>
@@ -210,7 +227,7 @@ export function App() {
       </footer>
 
       {/* Google Login Prompt */}
-      {!user && <LoginModal onLoginSuccess={(u) => setUser(u)} />}
+      {authReady && !user && <LoginModal onLoginSuccess={(u) => setUser(u)} />}
 
       {/* Compose Sequence Modal */}
       <ComposeModal

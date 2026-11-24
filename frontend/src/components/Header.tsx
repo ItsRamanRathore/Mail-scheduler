@@ -1,6 +1,6 @@
 import React from 'react';
 import { UserProfile } from '../types';
-import { LogOut, Sliders, Bell, LayoutDashboard, Plus, ShieldCheck } from 'lucide-react';
+import { LogOut, Sliders, LayoutDashboard, Plus } from 'lucide-react';
 
 interface HeaderProps {
   user: UserProfile | null;
@@ -58,11 +58,11 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </button>
 
-          {/* BullMQ Dashboard shortcut */}
+          {/* Scheduled job dashboard */}
           <button
             onClick={onOpenQueue}
             className="skeuo-button px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 flex items-center gap-2 cursor-pointer"
-            title="Inspect Live BullMQ Telemetry"
+            title="Inspect scheduled email queue"
           >
             <LayoutDashboard className="w-4 h-4 text-amber-600" />
             <span className="hidden md:inline">Queue Board</span>
