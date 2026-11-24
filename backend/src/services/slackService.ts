@@ -2,6 +2,11 @@ import { db } from '../db';
 import { config } from '../config';
 
 export async function sendSlackRateLimitAlert(sender: string, hourlyCount: number, limit: number, nextAvailableTime: Date) {
+  if (config.publicDemo) {
+    console.log(`[SLACK ALERT DISABLED] Public demo rate limit reached for ${sender}.`);
+    return;
+  }
+
   const slackConfig = db.prepare('SELECT webhook_url FROM slack_config WHERE tenant_id = ?').get('default') as { webhook_url?: string } | undefined;
 
   const webhook = slackConfig?.webhook_url || config.slack.webhookUrl;

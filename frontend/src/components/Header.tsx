@@ -9,6 +9,7 @@ interface HeaderProps {
   onOpenSlackModal: () => void;
   onOpenCompose: () => void;
   onOpenQueue: () => void;
+  publicDemo: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSlackModal,
   onOpenCompose,
   onOpenQueue,
+  publicDemo,
 }) => {
   return (
     <header className="sticky top-0 z-40 w-full bg-[#e3e8f1]/90 backdrop-blur-md border-b border-[#cbd5e1]/80 shadow-[0_4px_12px_rgba(166,175,190,0.35)]">
@@ -45,7 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Action Controls & Hardware Buttons */}
         <div className="flex items-center gap-3 sm:gap-4">
           {/* Slack Integration Hardware Pill */}
-          <button
+          {!publicDemo && <button
             onClick={onOpenSlackModal}
             className={`skeuo-button px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 text-slate-700 transition-all ${
               slackConnected ? 'border-emerald-400/60' : 'border-amber-400/60'
@@ -56,7 +58,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden sm:inline font-bold">
               {slackConnected ? 'Slack Online' : 'Connect Slack'}
             </span>
-          </button>
+          </button>}
 
           {/* Scheduled job dashboard */}
           <button

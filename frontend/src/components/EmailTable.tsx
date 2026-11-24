@@ -12,6 +12,7 @@ interface EmailTableProps {
   onCancel?: (id: string) => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  publicDemo: boolean;
 }
 
 export const EmailTable: React.FC<EmailTableProps> = ({
@@ -23,6 +24,7 @@ export const EmailTable: React.FC<EmailTableProps> = ({
   onCancel,
   searchQuery,
   onSearchChange,
+  publicDemo,
 }) => {
   const [selectedEmail, setSelectedEmail] = useState<EmailItem | null>(null);
 
@@ -86,7 +88,9 @@ export const EmailTable: React.FC<EmailTableProps> = ({
                       <p className="text-xs text-slate-500 max-w-sm">
                         {type === 'scheduled'
                           ? 'Click "Compose Sequence" to schedule jobs via BullMQ.'
-                          : 'Emails dispatched via SMTP relay will appear here with live preview links.'}
+                          : publicDemo
+                            ? 'Simulated email activity appears here. No messages leave the demo.'
+                            : 'Emails dispatched via SMTP relay will appear here with live preview links.'}
                       </p>
                     </div>
                   </td>
@@ -126,7 +130,7 @@ export const EmailTable: React.FC<EmailTableProps> = ({
                               : 'text-rose-800 border-rose-300'
                           }`}
                         >
-                          {email.status.toUpperCase()}
+                          {publicDemo && email.status === 'sent' ? 'SIMULATED' : email.status.toUpperCase()}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
@@ -200,16 +204,24 @@ export const EmailTable: React.FC<EmailTableProps> = ({
                 </div>
                 <div className="skeuo-inset p-3 rounded-xl">
                   <p className="text-[10px] uppercase font-bold text-slate-500">Delivery Status</p>
-                  <p className="font-extrabold capitalize text-amber-800 mt-0.5">{selectedEmail.status}</p>
+                  <p className="font-extrabold capitalize text-amber-800 mt-0.5">
+                    {publicDemo && selectedEmail.status === 'sent' ? 'simulated' : selectedEmail.status}
+                  </p>
                 </div>
               </div>
 
               <div>
                 <p className="text-xs font-bold text-slate-600 mb-1.5">Email Body Content</p>
-                <div
-                  className="p-4 rounded-xl skeuo-inset text-slate-800 max-h-56 overflow-y-auto text-sm"
-                  dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
-                />
+                {publicDemo ? (
+                  <div className="p-4 rounded-xl skeuo-inset text-slate-800 max-h-56 overflow-y-auto text-sm whitespace-pre-wrap">
+                    {selectedEmail.body.replace(/<[^>]*>/g, '')}
+                  </div>
+                ) : (
+                  <div
+                    className="p-4 rounded-xl skeuo-inset text-slate-800 max-h-56 overflow-y-auto text-sm"
+                    dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
+                  />
+                )}
               </div>
 
               {selectedEmail.preview_url && (

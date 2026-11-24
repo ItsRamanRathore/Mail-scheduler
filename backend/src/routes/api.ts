@@ -8,7 +8,11 @@ import { rateLimiterService } from '../services/rateLimiterService';
 import { config } from '../config';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: config.publicDemo ? { fileSize: 1024 * 1024 } : undefined,
+});
+const demoScheduleUsage = new Map<string, number[]>();
 
 router.get('/auth', (_req: Request, res: Response) => {
   res.json({ success: true, user: res.locals.user });
@@ -105,6 +109,20 @@ router.post('/schedule', async (req: Request, res: Response) => {
   if (!configuredSender) {
     return res.status(400).json({ success: false, error: 'Please select one of the configured sender identities.' });
   }
+  const demoUsageKey = req.ip || 'unknown';
+  const demoNow = Date.now();
+  const recentDemoUsage = config.publicDemo
+    ? (demoScheduleUsage.get(demoUsageKey) || []).filter((timestamp) => demoNow - timestamp < 60 * 60 * 1000)
+    : [];
+  if (config.publicDemo && recipients.length > config.maxDemoEmailsPerRequest) {
+    return res.status(413).json({
+      success: false,
+      error: `The public demo allows at most ${config.maxDemoEmailsPerRequest} recipients per schedule.`,
+    });
+  }
+  if (config.publicDemo && recentDemoUsage.length + recipients.length > config.maxDemoEmailsPerIpPerHour) {
+    return res.status(429).json({ success: false, error: 'The public demo scheduling limit has been reached. Try again later.' });
+  }
 
   const baseStartTime = startTime ? new Date(startTime).getTime() : Date.now();
   const staggerMs = Math.max(0, parseInt(delayBetweenSeconds || '2', 10) * 1000);
@@ -157,6 +175,12 @@ router.post('/schedule', async (req: Request, res: Response) => {
 
   try {
     runTransaction(recipients);
+    if (config.publicDemo) {
+      demoScheduleUsage.set(demoUsageKey, [
+        ...recentDemoUsage,
+        ...recipients.map(() => demoNow),
+      ]);
+    }
 
     // Enqueue jobs asynchronously
     for (const jobData of createdJobs) {
@@ -188,6 +212,12 @@ router.post('/parse-recipients', upload.single('file'), (req: Request, res: Resp
     const matches = content.match(emailRegex) || [];
     // Deduplicate
     const uniqueEmails = Array.from(new Set(matches.map((e) => e.toLowerCase())));
+    if (config.publicDemo && uniqueEmails.length > config.maxDemoEmailsPerRequest) {
+      return res.status(413).json({
+        success: false,
+        error: `The public demo allows at most ${config.maxDemoEmailsPerRequest} recipients per schedule.`,
+      });
+    }
 
     res.json({
       success: true,
@@ -217,6 +247,11 @@ router.post('/emails/:id/cancel', (req: Request, res: Response) => {
 
 // 6. Slack OAuth & Integration endpoints
 router.get('/slack/status', (req: Request, res: Response) => {
+  if (config.publicDemo) {
+    res.json({ connected: false, disabled: true });
+    return;
+  }
+
   const configRow = db.prepare('SELECT tenant_id, webhook_url, channel, updated_at FROM slack_config WHERE tenant_id = ?').get('default') as any;
   res.json({
     connected: !!configRow?.webhook_url,
@@ -226,6 +261,11 @@ router.get('/slack/status', (req: Request, res: Response) => {
 });
 
 router.post('/slack/connect', (req: Request, res: Response) => {
+  if (config.publicDemo) {
+    res.status(403).json({ success: false, error: 'Slack integration is disabled in the public demo.' });
+    return;
+  }
+
   const { webhookUrl, channel } = req.body;
   if (!webhookUrl) {
     return res.status(400).json({ success: false, error: 'webhookUrl is required' });
@@ -241,6 +281,11 @@ router.post('/slack/connect', (req: Request, res: Response) => {
 });
 
 router.post('/slack/disconnect', (req: Request, res: Response) => {
+  if (config.publicDemo) {
+    res.status(403).json({ success: false, error: 'Slack integration is disabled in the public demo.' });
+    return;
+  }
+
   db.prepare('DELETE FROM slack_config WHERE tenant_id = ?').run('default');
   res.json({ success: true, message: 'Slack disconnected.' });
 });

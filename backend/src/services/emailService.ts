@@ -46,6 +46,13 @@ export async function sendEmail(options: {
   subject: string;
   html: string;
 }) {
+  if (config.publicDemo) {
+    return {
+      messageId: `demo-${Date.now()}`,
+      previewUrl: '',
+    };
+  }
+
   const mailer = await getEmailTransporter();
   const info = await mailer.sendMail({
     from: `"${options.from.split('@')[0]}" <${options.from}>`,

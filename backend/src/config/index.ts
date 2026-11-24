@@ -14,6 +14,9 @@ export const config = {
     password: process.env.APP_PASSWORD || '',
     sessionSecret: process.env.SESSION_SECRET || '',
   },
+  publicDemo: process.env.PUBLIC_DEMO_MODE === 'true',
+  maxDemoEmailsPerRequest: 10,
+  maxDemoEmailsPerIpPerHour: 25,
   frontendOrigins: (process.env.FRONTEND_ORIGINS || 'http://localhost:5173')
     .split(',')
     .map((origin) => origin.trim())
@@ -39,3 +42,23 @@ export const config = {
     webhookUrl: process.env.SLACK_WEBHOOK_URL || '',
   }
 };
+
+export function assertSafeDemoConfiguration() {
+  if (!config.publicDemo) return;
+
+  if (config.nodeEnv === 'production' && config.dbPath !== '/data/scheduler-demo.db') {
+    throw new Error('Public demo mode requires DATABASE_URL=/data/scheduler-demo.db on its dedicated Railway volume.');
+  }
+  if (config.nodeEnv === 'production' && config.auth.password) {
+    throw new Error('Do not set APP_PASSWORD when PUBLIC_DEMO_MODE is enabled.');
+  }
+  if (config.auth.sessionSecret.length < 32) {
+    throw new Error('Public demo mode requires a SESSION_SECRET of at least 32 characters.');
+  }
+  if (config.smtp.user || config.smtp.password) {
+    throw new Error('Remove SMTP_USER and SMTP_PASS when PUBLIC_DEMO_MODE is enabled.');
+  }
+  if (config.slack.webhookUrl || config.slack.clientId || config.slack.clientSecret) {
+    throw new Error('Remove Slack credentials when PUBLIC_DEMO_MODE is enabled.');
+  }
+}

@@ -24,7 +24,8 @@ interface LoginAttempts {
 const loginAttempts = new Map<string, LoginAttempts>();
 
 function authIsConfigured(): boolean {
-  return config.auth.password.length >= 16 && config.auth.sessionSecret.length >= 32;
+  return config.auth.sessionSecret.length >= 32 &&
+    (config.publicDemo || config.auth.password.length >= 16);
 }
 
 function issueSessionToken(email: string, name: string) {
@@ -106,7 +107,11 @@ export function loginWithPassword(req: Request, res: Response) {
       { email: string; display_name: string } | undefined
     : undefined;
 
-  if (typeof password === 'string' && passwordMatches(password) && profile) {
+  const validCredentials = config.publicDemo
+    ? typeof profileEmail === 'string' && !password
+    : typeof password === 'string' && passwordMatches(password);
+
+  if (validCredentials && profile) {
     loginAttempts.delete(ip);
     const user = {
       name: profile.display_name,
@@ -127,7 +132,12 @@ export function loginWithPassword(req: Request, res: Response) {
     current.blockedUntil = now + LOGIN_WINDOW_MS;
   }
   loginAttempts.set(ip, current);
-  res.status(401).json({ success: false, error: 'The password or selected profile is incorrect.' });
+  res.status(401).json({
+    success: false,
+    error: config.publicDemo
+      ? 'Select one of the configured sender profiles.'
+      : 'The password or selected profile is incorrect.',
+  });
 }
 
 export function verifySession(req: Request, res: Response, next: NextFunction) {

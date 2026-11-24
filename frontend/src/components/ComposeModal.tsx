@@ -8,6 +8,7 @@ interface ComposeModalProps {
   onClose: () => void;
   onSuccess: () => void;
   senders: SenderOption[];
+  publicDemo: boolean;
 }
 
 export const ComposeModal: React.FC<ComposeModalProps> = ({
@@ -15,6 +16,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   onClose,
   onSuccess,
   senders,
+  publicDemo,
 }) => {
   const [sender, setSender] = useState(senders[0]?.email || 'alex.outreach@reachinbox.ai');
   const [recipientInput, setRecipientInput] = useState('');
@@ -122,7 +124,9 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               <h2 className="text-lg font-black text-slate-800 drop-shadow-[0_1px_0_rgba(255,255,255,0.8)]">
                 Compose Outbound Sequence
               </h2>
-              <p className="text-xs font-semibold text-slate-500">Schedules durable jobs with sender rate-limit protection</p>
+              <p className="text-xs font-semibold text-slate-500">
+                {publicDemo ? 'Sandbox only: messages are simulated and never delivered.' : 'Schedules durable jobs with sender rate-limit protection'}
+              </p>
             </div>
           </div>
           <button

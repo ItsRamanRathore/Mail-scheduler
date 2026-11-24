@@ -1,13 +1,24 @@
 import type { UserProfile } from '../types';
 
-const API_BASE = import.meta.env.DEV
-  ? 'http://localhost:5000/api'
-  : import.meta.env.VITE_API_BASE_URL;
-const SESSION_KEY = 'reachinbox-admin-session';
+const isPublicDemo = () => {
+  const path = window.location.pathname;
+  return path === '/demo' || path.startsWith('/demo/');
+};
+const SESSION_KEY = isPublicDemo() ? 'reachinbox-demo-session' : 'reachinbox-admin-session';
+
+function getApiBase() {
+  if (import.meta.env.DEV) return 'http://localhost:5000/api';
+  return isPublicDemo()
+    ? import.meta.env.VITE_DEMO_API_BASE_URL
+    : import.meta.env.VITE_API_BASE_URL;
+}
 
 function apiUrl(path: string) {
+  const API_BASE = getApiBase();
   if (!API_BASE) {
-    throw new Error('Set VITE_API_BASE_URL to the Railway API URL ending in /api.');
+    throw new Error(isPublicDemo()
+      ? 'Set VITE_DEMO_API_BASE_URL to the isolated demo Railway API URL ending in /api.'
+      : 'Set VITE_API_BASE_URL to the Railway API URL ending in /api.');
   }
   return `${API_BASE}${path}`;
 }
@@ -15,7 +26,7 @@ function apiUrl(path: string) {
 function authorizedFetch(path: string, init: RequestInit = {}) {
   const token = sessionStorage.getItem(SESSION_KEY);
   if (!token) {
-    throw new Error('Sign in with Google to continue.');
+    throw new Error('Sign in to continue.');
   }
 
   const headers = new Headers(init.headers);
@@ -24,11 +35,11 @@ function authorizedFetch(path: string, init: RequestInit = {}) {
 }
 
 export const api = {
-  async login(profileEmail: string, password: string) {
+  async login(profileEmail: string, password?: string) {
     const response = await fetch(apiUrl('/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profileEmail, password }),
+      body: JSON.stringify(isPublicDemo() ? { profileEmail } : { profileEmail, password }),
     });
     const result = await response.json() as {
       token?: string;
@@ -47,7 +58,7 @@ export const api = {
     const response = await authorizedFetch('/auth');
     const result = await response.json() as { user?: UserProfile; error?: string };
     if (!response.ok || !result.user) {
-      throw new Error(result.error || 'Your Google session is no longer valid.');
+      throw new Error(result.error || 'Your session is no longer valid.');
     }
     return result.user;
   },
@@ -55,6 +66,8 @@ export const api = {
   hasSession() {
     return Boolean(sessionStorage.getItem(SESSION_KEY));
   },
+
+  isPublicDemo,
 
   logout() {
     sessionStorage.removeItem(SESSION_KEY);

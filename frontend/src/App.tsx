@@ -11,6 +11,7 @@ import { api } from './services/api';
 import { Calendar, CheckCircle2, Shield, Layers } from 'lucide-react';
 
 export function App() {
+  const publicDemo = api.isPublicDemo();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [authReady, setAuthReady] = useState(false);
 
@@ -61,7 +62,7 @@ export function App() {
       const [statsRes, emailRes, slackRes] = await Promise.all([
         api.getStats(),
         api.getEmails(activeTab === 'queue' ? undefined : activeTab, searchQuery),
-        api.getSlackStatus(),
+        publicDemo ? Promise.resolve(null) : api.getSlackStatus(),
       ]);
 
       if (statsRes.success) {
@@ -81,7 +82,7 @@ export function App() {
       setIsInitialLoad(false);
       setIsRefreshing(false);
     }
-  }, [activeTab, searchQuery]);
+  }, [activeTab, publicDemo, searchQuery]);
 
   useEffect(() => {
     if (!authReady || !user) return;
@@ -116,6 +117,7 @@ export function App() {
         user={user}
         onLogout={handleLogout}
         slackConnected={slackConnected}
+        publicDemo={publicDemo}
         onOpenSlackModal={() => setIsSlackOpen(true)}
         onOpenCompose={() => setIsComposeOpen(true)}
         onOpenQueue={() => setActiveTab('queue')}
@@ -123,6 +125,11 @@ export function App() {
 
       {/* Main Console Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-7">
+        {publicDemo && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+            Public demo sandbox: email delivery is simulated, Slack is disabled, and data is isolated from production.
+          </div>
+        )}
         {/* Metric Cards Banner */}
         <StatsOverview stats={stats} />
 
@@ -220,6 +227,7 @@ export function App() {
               onCancel={handleCancelEmail}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
+              publicDemo={publicDemo}
             />
           )}
         </div>
@@ -228,12 +236,12 @@ export function App() {
       {/* Footer */}
       <footer className="mt-auto border-t border-slate-300/80 py-6 text-center text-xs font-semibold text-slate-500">
         <p className="drop-shadow-[0_1px_0_rgba(255,255,255,0.8)]">
-          ReachInbox Engineering Hiring Assignment • Production Email Scheduler Console
+          {publicDemo ? 'ReachInbox Scheduler • Isolated Public Demo' : 'ReachInbox Engineering Hiring Assignment • Production Email Scheduler Console'}
         </p>
       </footer>
 
       {/* Google Login Prompt */}
-      {authReady && !user && <LoginModal onLoginSuccess={(signedInUser) => setUser(signedInUser)} />}
+      {authReady && !user && <LoginModal publicDemo={publicDemo} onLoginSuccess={(signedInUser) => setUser(signedInUser)} />}
 
       {/* Compose Sequence Modal */}
       <ComposeModal
@@ -241,15 +249,18 @@ export function App() {
         onClose={() => setIsComposeOpen(false)}
         onSuccess={fetchData}
         senders={senders}
+        publicDemo={publicDemo}
       />
 
       {/* Slack Integration Modal */}
-      <SlackModal
-        isOpen={isSlackOpen}
-        onClose={() => setIsSlackOpen(false)}
-        slackConnected={slackConnected}
-        onStatusChange={fetchData}
-      />
+      {!publicDemo && (
+        <SlackModal
+          isOpen={isSlackOpen}
+          onClose={() => setIsSlackOpen(false)}
+          slackConnected={slackConnected}
+          onStatusChange={fetchData}
+        />
+      )}
     </div>
   );
 }

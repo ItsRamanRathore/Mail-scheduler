@@ -3,7 +3,7 @@ import cors from 'cors';
 import { createBullBoard } from '@bull-board/api';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { ExpressAdapter } from '@bull-board/express';
-import { config } from './config';
+import { assertSafeDemoConfiguration, config } from './config';
 import { initDB } from './db';
 import { initQueue, emailQueue } from './services/queueService';
 import { searchService } from './services/searchService';
@@ -12,6 +12,7 @@ import { loginWithPassword, verifySession } from './middleware/auth';
 
 const app = express();
 app.set('trust proxy', 1);
+assertSafeDemoConfiguration();
 
 app.use(cors({
   origin(origin, callback) {
@@ -23,7 +24,7 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: config.publicDemo ? '64kb' : '100kb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Initialize SQLite schema
@@ -40,15 +41,17 @@ try {
   const serverAdapter = new ExpressAdapter();
   serverAdapter.setBasePath('/admin/queues');
 
-  if (emailQueue) {
+  if (emailQueue && !config.publicDemo) {
     createBullBoard({
       queues: [new BullMQAdapter(emailQueue)],
       serverAdapter: serverAdapter,
     });
   }
 
-  app.use('/admin/queues', verifySession, serverAdapter.getRouter());
-  console.log('📊 BullMQ Live Queue Dashboard mounted at /admin/queues');
+  if (!config.publicDemo) {
+    app.use('/admin/queues', verifySession, serverAdapter.getRouter());
+    console.log('📊 BullMQ Live Queue Dashboard mounted at /admin/queues');
+  }
 } catch (err) {
   console.warn('BullBoard setup note:', err);
 }
@@ -61,6 +64,7 @@ app.use('/api', verifySession, apiRouter);
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
+    mode: config.publicDemo ? 'demo' : 'production',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
   });

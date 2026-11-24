@@ -212,6 +212,28 @@ Railway does not copy the local database automatically. A consistent SQLite back
    Replace the placeholder with the public domain Railway assigns to the backend, followed by `/api` (for example, `https://scheduler-api.up.railway.app/api`). Do not add a trailing slash. This URL is public and is not a secret.
 4. **Deploy in order.** Deploy the Railway backend and generate its public domain first. Set `VITE_API_BASE_URL` to that domain, then deploy or redeploy Vercel. Copy Vercel's production origin (scheme and hostname only) into Railway's `FRONTEND_ORIGINS` variable and redeploy the backend if it wasn't already set.
 
+### Optional: Isolated public evaluation demo
+
+The production app at `/` remains password protected. To let evaluators try the scheduler without credentials, create a **separate Railway backend service and volume** in the project. Do not reuse the production service, database, Redis, SMTP, or Slack credentials.
+
+1. Connect the new Railway service to this repository and branch, set its root directory to `backend`, and use the same install, build, start, Node 22, and `/health` settings as the protected service. Name it clearly, such as `Mail-scheduler-public-demo`.
+2. Attach a **new volume dedicated to the demo** at `/data`, and configure exactly one replica. Set `DATABASE_URL=/data/scheduler-demo.db`; do not point this service at any production database file or volume.
+3. Configure the demo service variables:
+
+   ```env
+   NODE_ENV=production
+   RAILPACK_NODE_VERSION=22
+   PUBLIC_DEMO_MODE=true
+   DATABASE_URL=/data/scheduler-demo.db
+   SESSION_SECRET=use-a-random-secret-of-at-least-32-characters
+   FRONTEND_ORIGINS=https://YOUR_VERCEL_DOMAIN
+   ```
+
+   Generate a unique session secret with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Do not set `APP_PASSWORD`, any `SMTP_USER`/`SMTP_PASS` values, Slack credentials, or production Redis variables. Demo mode refuses to start if a production database path, SMTP credentials, or Slack credentials are configured. It never sends email; jobs are simulated and clearly labeled. Slack is disabled. Schedule requests are capped at 10 recipients and 25 recipients per IP per hour.
+4. If you want the demo to show the existing mock history, copy the local SQLite snapshot to the new volume as `/scheduler-demo.db` **after deleting every row from its `slack_config` table**. Keep the original snapshot unchanged and private. Otherwise, leave the new volume empty; the app seeds the three sample sender profiles. Do not upload the snapshot to the production service or overwrite its database.
+5. Add `VITE_DEMO_API_BASE_URL=https://YOUR-DEMO-RAILWAY-DOMAIN/api` to Vercel's Production environment variables. Keep the existing `VITE_API_BASE_URL` pointing to the protected production API. Redeploy Vercel after setting the variable.
+6. Open `https://YOUR_VERCEL_DOMAIN/demo`. Selecting one of the three sender profiles signs into the sandbox in one click. The root path `/` continues to use the password-protected production service. Verify the demo service's `/health` response reports `"mode":"demo"` and confirm the production service still reports `"mode":"production"`.
+
 ### 3. Verify the deployment
 
 Open `https://YOUR-RAILWAY-DOMAIN/health`; it should return a healthy status. Sign in on Vercel by selecting a sender profile and entering the Railway scheduler password, schedule a test email to an address you control, and confirm the record remains after a Railway redeploy.

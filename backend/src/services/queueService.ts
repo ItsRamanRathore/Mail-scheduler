@@ -41,13 +41,15 @@ export async function scheduleEmailJob(data: EmailJobData) {
   const delayMs = Math.max(0, data.scheduledAt - now);
   const jobId = `email-${data.emailId}`;
 
-  try {
-    await emailQueue.add('send-email', data, {
-      delay: delayMs,
-      jobId,
-    });
-  } catch (error) {
-    console.warn('BullMQ dashboard enqueue failed; the scheduled email remains in SQLite.', error);
+  if (!config.publicDemo) {
+    try {
+      await emailQueue.add('send-email', data, {
+        delay: delayMs,
+        jobId,
+      });
+    } catch (error) {
+      console.warn('BullMQ dashboard enqueue failed; the scheduled email remains in SQLite.', error);
+    }
   }
 
   if (delayMs > 0) {
