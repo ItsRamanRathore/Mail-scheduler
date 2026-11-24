@@ -1,6 +1,6 @@
 # 🚀 ReachInbox - Full-stack Email Job Scheduler & Dashboard
 
-A distributed email scheduler and live monitoring dashboard built for the **ReachInbox Software Development Intern Assignment**. The frontend is deployed on Vercel and the Express API runs on Railway with SQLite on a persistent volume. The scheduler is protected by an admin password; Firebase is not used.
+A distributed email scheduler and live monitoring dashboard built for the **ReachInbox Software Development Intern Assignment**. The frontend is deployed on Vercel and the Express API runs on Railway with SQLite on a persistent volume. The API uses a shared admin password; Firebase and Google OAuth are not used.
 
 Designed with **scheduled email delivery**, **SQLite restart recovery**, **per-sender sliding-window rate limiting**, **live Slack notifications on threshold breaches**, and a **premium, bespoke dark-mode frontend**.
 
@@ -46,7 +46,7 @@ Designed with **scheduled email delivery**, **SQLite restart recovery**, **per-s
 
 ### 6. Premium Bespoke Frontend Design
 - **Non-AI Template Look:** Handcrafted dark palette (`#080d1a`), ambient glassmorphic cards, glowing status pills, and micro-interactions.
-- **Admin Password:** A Railway-configured password protects the API; signed sessions expire after 12 hours.
+- **Protected Demo Profile Picker:** Choose one of the three saved sender profiles, then sign in with the Railway admin password. Signed sessions expire after 12 hours.
 - **Batch CSV/TXT Lead Upload:** Direct drag-and-drop or file upload of email lead lists with automatic deduplication.
 - **Live Monitoring:** Real-time counters for Scheduled, Delivered, and Sender Quota bars.
 - **Ethereal Mailbox Previews:** Direct one-click links to view real emails rendered in Ethereal.
@@ -177,11 +177,11 @@ This deployment uses Vercel for the React frontend and Railway for the Express A
    ```
 
    - `RAILPACK_NODE_VERSION=22` ensures Railway uses Node 22, which is compatible with the native SQLite dependency.
-   - `APP_PASSWORD` is the shared admin login. Replace the example with a unique password at least 16 characters long.
-   - Generate `SESSION_SECRET` with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. It signs login sessions; keep it private. Sessions expire after 12 hours and failed login attempts are rate-limited.
+   - `APP_PASSWORD` is the shared scheduler login. Use a unique password at least 16 characters long; the login screen lets you select one of the three saved sender profiles.
+   - Generate `SESSION_SECRET` with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. It signs login sessions; keep it private. Sessions expire after 12 hours.
    - `FRONTEND_ORIGINS` must be the exact Vercel origin, such as `https://my-scheduler.vercel.app`, with no path. It allows the browser frontend to call the API.
    - Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, and `SMTP_PASS` to your email provider's settings for real delivery. Keep passwords in Railway Variables. Without SMTP credentials, the backend uses Ethereal test email, which is not real delivery.
-   - `DATABASE_URL` must match the volume path from step 5. Do not put `APP_PASSWORD` or `SESSION_SECRET` in Vercel or in source control.
+   - `DATABASE_URL` must match the volume path from step 5. Do not put `APP_PASSWORD` or `SESSION_SECRET` in Vercel or in source control. The email `admin@gmail.com` shown on the demo login screen is only an evaluation label; no Google authentication occurs.
 
 ### Import existing local data into Railway
 
@@ -197,7 +197,7 @@ Railway does not copy the local database automatically. A consistent SQLite back
 
    The remote path is relative to the volume, so `/scheduler-import.db` is available to the backend as `/data/scheduler-import.db`.
 4. **Switch the backend to the imported file.** In Railway's backend service Variables, set `DATABASE_URL` to `/data/scheduler-import.db`, then let Railway restart the service. This uses a new filename rather than overwriting `/data/scheduler.db`; the previous database remains on the volume as a fallback.
-5. **Verify the import.** Open the Vercel app and confirm the email history and all three sender profiles are present. The API only accepts sending identities already present in the database, so this import limits sending to those three profiles. They are sender profiles, not separate login accounts; the app still uses the shared `APP_PASSWORD` login.
+5. **Verify the import.** Open the Vercel app and confirm the email history and all three sender profiles are present. The API only accepts sending identities already present in the database, so this import limits sending to those three profiles. They are sender profiles, not login accounts; select a profile and use the shared Railway scheduler password.
 
 ### 2. Deploy the frontend on Vercel
 
@@ -214,7 +214,7 @@ Railway does not copy the local database automatically. A consistent SQLite back
 
 ### 3. Verify the deployment
 
-Open `https://YOUR-RAILWAY-DOMAIN/health`; it should return a healthy status. Sign in on Vercel with the admin password, schedule a test email to an address you control, and confirm the record remains after a Railway redeploy.
+Open `https://YOUR-RAILWAY-DOMAIN/health`; it should return a healthy status. Sign in on Vercel by selecting a sender profile and entering the Railway scheduler password, schedule a test email to an address you control, and confirm the record remains after a Railway redeploy.
 
 ### Service sleep and scheduled sends
 

@@ -37,10 +37,5 @@ export const config = {
     clientSecret: process.env.SLACK_CLIENT_SECRET || '',
     redirectUri: process.env.SLACK_REDIRECT_URI || 'http://localhost:5000/api/slack/callback',
     webhookUrl: process.env.SLACK_WEBHOOK_URL || '',
-  },
-  google: {
-    clientId: process.env.GOOGLE_CLIENT_ID || '',
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-    redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173/auth/callback',
   }
 };

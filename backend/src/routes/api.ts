@@ -11,7 +11,7 @@ const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/auth', (_req: Request, res: Response) => {
-  res.json({ success: true });
+  res.json({ success: true, user: res.locals.user });
 });
 
 // 1. GET /api/emails - Retrieve scheduled and sent emails with search & pagination

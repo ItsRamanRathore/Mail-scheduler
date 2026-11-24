@@ -36,12 +36,8 @@ export function App() {
 
     let active = true;
     api.verifyAuth()
-      .then((response) => {
-        if (response.ok && active) {
-          setUser(api.getSessionUser());
-        } else {
-          api.logout();
-        }
+      .then((signedInUser) => {
+        if (active) setUser(signedInUser);
       })
       .catch((error) => {
         console.error('Failed to validate the saved session:', error);
@@ -237,7 +233,7 @@ export function App() {
       </footer>
 
       {/* Google Login Prompt */}
-      {authReady && !user && <LoginModal onLoginSuccess={(u) => setUser(u)} />}
+      {authReady && !user && <LoginModal onLoginSuccess={(signedInUser) => setUser(signedInUser)} />}
 
       {/* Compose Sequence Modal */}
       <ComposeModal

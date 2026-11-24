@@ -1,3 +1,5 @@
+import type { UserProfile } from '../types';
+
 const API_BASE = import.meta.env.DEV
   ? 'http://localhost:5000/api'
   : import.meta.env.VITE_API_BASE_URL;
@@ -13,7 +15,7 @@ function apiUrl(path: string) {
 function authorizedFetch(path: string, init: RequestInit = {}) {
   const token = sessionStorage.getItem(SESSION_KEY);
   if (!token) {
-    throw new Error('Sign in with the scheduler admin password to continue.');
+    throw new Error('Sign in with Google to continue.');
   }
 
   const headers = new Headers(init.headers);
@@ -22,31 +24,36 @@ function authorizedFetch(path: string, init: RequestInit = {}) {
 }
 
 export const api = {
-  async login(password: string) {
+  async login(profileEmail: string, password: string) {
     const response = await fetch(apiUrl('/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ profileEmail, password }),
     });
-    const result = await response.json() as { token?: string; error?: string };
-    if (!response.ok || !result.token) {
+    const result = await response.json() as {
+      token?: string;
+      error?: string;
+      user?: UserProfile;
+    };
+    if (!response.ok || !result.token || !result.user) {
       throw new Error(result.error || 'Sign-in failed.');
     }
 
     sessionStorage.setItem(SESSION_KEY, result.token);
-    return { name: 'Scheduler Admin', email: 'Admin', avatar: '', tenantId: 'admin' };
+    return result.user;
   },
 
   async verifyAuth() {
-    return await authorizedFetch('/auth');
+    const response = await authorizedFetch('/auth');
+    const result = await response.json() as { user?: UserProfile; error?: string };
+    if (!response.ok || !result.user) {
+      throw new Error(result.error || 'Your Google session is no longer valid.');
+    }
+    return result.user;
   },
 
   hasSession() {
     return Boolean(sessionStorage.getItem(SESSION_KEY));
-  },
-
-  getSessionUser() {
-    return { name: 'Scheduler Admin', email: 'Admin', avatar: '', tenantId: 'admin' };
   },
 
   logout() {
