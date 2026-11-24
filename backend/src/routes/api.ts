@@ -98,8 +98,12 @@ router.post('/schedule', async (req: Request, res: Response) => {
   if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
     return res.status(400).json({ success: false, error: 'At least one recipient email address is required.' });
   }
-  if (!sender || !subject || !body) {
+  if (typeof sender !== 'string' || !sender || !subject || !body) {
     return res.status(400).json({ success: false, error: 'Sender, subject, and body are required.' });
+  }
+  const configuredSender = db.prepare('SELECT 1 FROM senders WHERE email = ?').get(sender);
+  if (!configuredSender) {
+    return res.status(400).json({ success: false, error: 'Please select one of the configured sender identities.' });
   }
 
   const baseStartTime = startTime ? new Date(startTime).getTime() : Date.now();

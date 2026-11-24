@@ -153,13 +153,14 @@ This deployment uses Vercel for the React frontend and Railway for the Express A
 
 ### 1. Deploy the API on Railway
 
-1. Create a Railway project from this GitHub repository and add a service for it.
-2. Set the service **Root Directory** to `backend`.
-3. Let Railway install dependencies with `pnpm install --frozen-lockfile --prefer-offline` (or its detected pnpm install command). Set the build command to `pnpm build`, start command to `pnpm start`, and health-check path to `/health`. Do not add a separate global `node-gyp` install command.
-4. Add a Railway volume mounted at `/data`. Set `DATABASE_URL=/data/scheduler.db` so SQLite and its WAL files persist across deployments and restarts.
-5. Keep the service to one replica because SQLite is local to the mounted volume.
-6. Add a Redis service if you want the BullMQ queue inspector, then map its host, port, and password to `REDIS_HOST`, `REDIS_PORT`, and `REDIS_PASSWORD`.
-7. Set the Railway service variables:
+1. **Create the backend service.** In Railway, create a project from this GitHub repository and add a service connected to the repository. Select the branch you will push deployment changes to; Railway can only build committed and pushed files.
+2. **Set the service root directory.** Open the backend service's **Settings** and set **Root Directory** to `backend`. This makes Railway use `backend/package.json`, its lockfile, and its TypeScript source instead of trying to build the repository root.
+3. **Configure install, build, and start.** Let Railway detect pnpm or set the install command to `pnpm install --frozen-lockfile --prefer-offline`. Set the build command to `pnpm build` and the start command to `pnpm start`. Set the health-check path to `/health`; Railway will request this endpoint after starting the service. The backend pins Node 22 and pnpm 10 in `backend/package.json`. Do not add a separate global `node-gyp` install command.
+4. **Attach persistent storage.** From the Railway project canvas, create a **Volume**, connect it to this backend service, and set its **Mount Path** to `/data`. Create it in the same Railway environment (for example, Production) as the backend service. A mount makes that directory available to the running container and keeps the database files when Railway replaces the container.
+5. **Point SQLite at the volume.** In the backend service's **Variables**, add `DATABASE_URL` with the exact value `/data/scheduler.db`. The app uses this as a filesystem path, not a database URL. SQLite also creates WAL files beside the database, so they persist on the same volume. Save and redeploy/restart the service after attaching the volume and setting the variable.
+6. **Keep one backend replica.** SQLite is a file on one mounted volume; multiple backend replicas would not share it safely. Set the service's replica/instance count to one.
+7. **Optionally add Redis.** Redis is only needed for the BullMQ queue inspector; email records and scheduled sends use SQLite and the Railway process. If you want the inspector, add a Redis service in the same Railway project, then reference its host, port, and password from the backend service as `REDIS_HOST`, `REDIS_PORT`, and `REDIS_PASSWORD`.
+8. **Set the remaining backend variables.** In the backend service's **Variables** tab, add:
 
    ```env
    NODE_ENV=production
@@ -175,19 +176,41 @@ This deployment uses Vercel for the React frontend and Railway for the Express A
    SMTP_PASS=your-smtp-password
    ```
 
-   Generate a session secret with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Keep both password and session secret in Railway variables, never in the frontend or source control. The API rate-limits failed sign-in attempts and expires sessions after 12 hours. Configure SMTP for real delivery; without SMTP credentials, local development uses Ethereal test email.
+   - `RAILPACK_NODE_VERSION=22` ensures Railway uses Node 22, which is compatible with the native SQLite dependency.
+   - `APP_PASSWORD` is the shared admin login. Replace the example with a unique password at least 16 characters long.
+   - Generate `SESSION_SECRET` with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. It signs login sessions; keep it private. Sessions expire after 12 hours and failed login attempts are rate-limited.
+   - `FRONTEND_ORIGINS` must be the exact Vercel origin, such as `https://my-scheduler.vercel.app`, with no path. It allows the browser frontend to call the API.
+   - Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, and `SMTP_PASS` to your email provider's settings for real delivery. Keep passwords in Railway Variables. Without SMTP credentials, the backend uses Ethereal test email, which is not real delivery.
+   - `DATABASE_URL` must match the volume path from step 5. Do not put `APP_PASSWORD` or `SESSION_SECRET` in Vercel or in source control.
+
+### Import existing local data into Railway
+
+Railway does not copy the local database automatically. A consistent SQLite backup for this workspace is available at `backend/data/scheduler-railway.db`; it was made with SQLite's backup API so it includes committed data from the WAL file. It passed SQLite's integrity check and contains 55 email records, the 3 example sender profiles, and 1 Slack configuration. Keep this database file private and do not commit it.
+
+1. **Check the scheduled records before starting the imported database.** The backup has 53 sent records and 2 overdue `rescheduled` records. On startup, the backend recovers scheduled and rescheduled jobs; overdue jobs are attempted immediately. To avoid real delivery while evaluating, leave the `SMTP_*` variables unset until you have reviewed those records. Without SMTP settings, the app uses Ethereal test email. The records remain in the database, though their status may change when the jobs are attempted.
+2. **Select the correct Railway volume.** In PowerShell at the repository root, run `railway login`, then `railway link` and select the Railway project and Production environment. Run `railway volume list` and identify the volume mounted at `/data`.
+3. **Upload the backup without replacing an existing database.** Run this command, replacing `YOUR_VOLUME_NAME` with the volume name or ID:
+
+   ```powershell
+   railway volume files --volume YOUR_VOLUME_NAME upload .\backend\data\scheduler-railway.db /scheduler-import.db
+   ```
+
+   The remote path is relative to the volume, so `/scheduler-import.db` is available to the backend as `/data/scheduler-import.db`.
+4. **Switch the backend to the imported file.** In Railway's backend service Variables, set `DATABASE_URL` to `/data/scheduler-import.db`, then let Railway restart the service. This uses a new filename rather than overwriting `/data/scheduler.db`; the previous database remains on the volume as a fallback.
+5. **Verify the import.** Open the Vercel app and confirm the email history and all three sender profiles are present. The API only accepts sending identities already present in the database, so this import limits sending to those three profiles. They are sender profiles, not separate login accounts; the app still uses the shared `APP_PASSWORD` login.
 
 ### 2. Deploy the frontend on Vercel
 
-1. Import the repository into Vercel and set **Root Directory** to `frontend`.
-2. Use Vercel's Vite defaults: `pnpm install --frozen-lockfile`, build `pnpm build`, output directory `dist`. The included `frontend/vercel.json` routes frontend paths to the SPA entry point.
-3. Add this Vercel environment variable for Production:
+1. **Import the frontend.** Import the same GitHub repository into Vercel and select the branch containing the deployment code. Set **Root Directory** to `frontend`; this points Vercel at the React/Vite app and its lockfile.
+2. **Set the build options.** Use install command `pnpm install --frozen-lockfile`, build command `pnpm build`, and output directory `dist`. The included `frontend/vercel.json` rewrites client-side routes to `index.html`, so refreshing a nested route still loads the app.
+3. **Connect it to Railway.** Add this environment variable in Vercel's project settings for Production:
 
    ```env
    VITE_API_BASE_URL=https://YOUR-RAILWAY-DOMAIN/api
    ```
 
-4. Deploy the Railway API first, then set `VITE_API_BASE_URL` to its public domain and deploy or redeploy Vercel.
+   Replace the placeholder with the public domain Railway assigns to the backend, followed by `/api` (for example, `https://scheduler-api.up.railway.app/api`). Do not add a trailing slash. This URL is public and is not a secret.
+4. **Deploy in order.** Deploy the Railway backend and generate its public domain first. Set `VITE_API_BASE_URL` to that domain, then deploy or redeploy Vercel. Copy Vercel's production origin (scheme and hostname only) into Railway's `FRONTEND_ORIGINS` variable and redeploy the backend if it wasn't already set.
 
 ### 3. Verify the deployment
 
@@ -201,7 +224,7 @@ SQLite data survives a deploy only when the database path is on the Railway volu
 
 ### Security and transition notes
 
-- SQLite starts empty on the Railway volume; data is not automatically imported from another deployment.
+- A new Railway volume starts empty; data is not automatically imported from another deployment. Use the import steps above if you need to bring over an existing local database.
 - `backend/.env` was tracked previously. It is now excluded from future commits, but removing it from the latest commit does not erase older Git history. Rotate any credentials it contained before deploying or sharing the repository.
 
 ---
