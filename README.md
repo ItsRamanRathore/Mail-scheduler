@@ -163,6 +163,7 @@ This deployment uses Vercel for the React frontend and Railway for the Express A
 
    ```env
    NODE_ENV=production
+   RAILPACK_NODE_VERSION=22
    DATABASE_URL=/data/scheduler.db
    APP_PASSWORD=use-a-unique-password-of-at-least-16-characters
    SESSION_SECRET=use-a-random-secret-of-at-least-32-characters
